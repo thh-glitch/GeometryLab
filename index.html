@@ -74,6 +74,22 @@
             z-index: 1000;
         }
     </style>
+    
+    <!-- Error Suppression Script -->
+    <script>
+        // Suppress benign ResizeObserver loop errors
+        const _ResizeObserver = window.ResizeObserver;
+        window.ResizeObserver = class ResizeObserver extends _ResizeObserver {
+            constructor(callback) {
+                callback = (origCallback => (entries, observer) => {
+                    window.requestAnimationFrame(() => {
+                        origCallback(entries, observer);
+                    });
+                })(callback);
+                super(callback);
+            }
+        };
+    </script>
 </head>
 <body>
     <div id="root"></div>
@@ -123,42 +139,45 @@
         const OptimizationChart = ({ shapeId, currentParams, currentArea }) => {
             const data = useMemo(() => {
                 if (shapeId !== 'cylinder') return [];
-                // Generate curve: Fixed Volume, varying radius -> Area
                 const fixedVol = Math.PI * Math.pow(currentParams.radius, 2) * currentParams.height;
                 const points = [];
                 for (let r = 1.5; r <= 6; r += 0.2) {
                     const h = fixedVol / (Math.PI * r * r);
-                    // Constraint height reasonably for the graph
                     if (h > 15 || h < 1) continue;
                     const a = 2 * Math.PI * r * h + 2 * Math.PI * r * r;
                     points.push({ r: parseFloat(r.toFixed(1)), area: Math.round(a) });
                 }
                 return points;
-            }, [shapeId, currentParams.radius, currentParams.height]); // Note: Ideally we lock volume, but here we just show curve for *current* volume
+            }, [shapeId, currentParams.radius, currentParams.height]);
 
             if (shapeId !== 'cylinder') return (
-                <div className="h-32 flex items-center justify-center text-slate-400 text-xs">
-                    Graph available for Cylinder optimization
+                <div className="h-32 flex items-center justify-center text-slate-400 text-xs bg-slate-50 rounded-xl border border-slate-200 mt-4">
+                    Optimization graph available for Cylinder
                 </div>
             );
 
             return (
-                <div className="h-40 w-full mt-4 bg-white/50 rounded-xl p-2 border border-indigo-100">
-                    <div className="text-[10px] font-bold text-indigo-400 mb-1 uppercase tracking-wider">Surface Area vs Radius (Fixed Vol)</div>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={data}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                            <XAxis dataKey="r" fontSize={10} tick={{fill: '#94a3b8'}} label={{ value: 'Radius', position: 'insideBottomRight', offset: -5, fontSize: 10 }} />
-                            <YAxis fontSize={10} tick={{fill: '#94a3b8'}} domain={['auto', 'auto']} hide />
-                            <Tooltip 
-                                contentStyle={{background: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
-                                itemStyle={{fontSize: '12px', color: '#6366f1', fontWeight: 'bold'}}
-                                labelStyle={{display: 'none'}}
-                            />
-                            <Line type="monotone" dataKey="area" stroke="#6366f1" strokeWidth={2} dot={false} />
-                            <ReferenceDot x={currentParams.radius} y={Math.round(currentArea)} r={4} fill="#ef4444" stroke="#fff" />
-                        </LineChart>
-                    </ResponsiveContainer>
+                <div className="h-48 w-full mt-4 bg-white rounded-xl p-2 border border-slate-200 shadow-sm">
+                    <div className="text-[10px] font-bold text-indigo-500 mb-2 uppercase tracking-wider flex items-center gap-1">
+                        <TrendingUp size={12}/> Surface Area vs Radius (Fixed Vol)
+                    </div>
+                    <div style={{ width: '100%', height: '130px' }}>
+                        <ResponsiveContainer>
+                            <LineChart data={data}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="r" fontSize={10} tick={{fill: '#94a3b8'}} />
+                                <YAxis fontSize={10} tick={{fill: '#94a3b8'}} domain={['auto', 'auto']} hide />
+                                <Tooltip 
+                                    contentStyle={{background: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
+                                    itemStyle={{fontSize: '12px', color: '#6366f1', fontWeight: 'bold'}}
+                                    labelStyle={{display: 'none'}}
+                                    formatter={(value) => [`${value} cm²`, 'Area']}
+                                />
+                                <Line type="monotone" dataKey="area" stroke="#6366f1" strokeWidth={2} dot={false} />
+                                <ReferenceDot x={currentParams.radius} y={Math.round(currentArea)} r={4} fill="#ef4444" stroke="#fff" />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
             );
         };
@@ -175,15 +194,15 @@
             const [validation, setValidation] = useState({ vol: false, constraint: false });
             const [streak, setStreak] = useState(0);
             
-            // New Visual Toggles
-            const [showNet, setShowNet] = useState(false); // 2D Net View
-            const [showRefObj, setShowRefObj] = useState(false); // Reference Object (Pencil)
+            // Toggles
+            const [showNet, setShowNet] = useState(false); 
+            const [showRefObj, setShowRefObj] = useState(false); 
 
             // Three.js Refs
             const sceneRef = useRef(null);
             const meshRef = useRef(null);
-            const netRef = useRef(null); // Ref for 2D net group
-            const refObjRef = useRef(null); // Ref for reference object
+            const netRef = useRef(null); 
+            const refObjRef = useRef(null); 
             const rendererRef = useRef(null);
             const cameraRef = useRef(null);
             const animationFrameRef = useRef(null);
@@ -195,10 +214,8 @@
             const currentVolume = shapeConfig.formulas.volume(params);
             const currentArea = shapeConfig.formulas.area(params);
 
-            // Profit Calculation for Tycoon Mode
             const calculateProfit = () => {
                 if (scenario && scenario.type === 'tycoon') {
-                    // Revenue: $0.05 per ml. Cost: $0.02 per cm2
                     const revenue = currentVolume * 0.05;
                     const cost = currentArea * 0.02;
                     return (revenue - cost).toFixed(2);
@@ -221,15 +238,13 @@
                     },
                     {
                         type: 'tycoon', shapeId: 'cylinder', title: 'Factory Tycoon', icon: <Coins className="text-amber-500" />,
-                        desc: 'Maximize your profit! Revenue is based on volume ($0.05/ml), but materials cost money ($0.02/cm²).',
+                        desc: 'Maximize profit! Revenue: $0.05/ml, Cost: $0.02/cm². Optimize dimensions to increase margin.',
                         gen: () => {
                             const v = 350; 
-                            // Calculate max possible profit roughly to set a target
-                            // Max profit happens at min area. 
                             const r_ideal = Math.pow(v / (2 * Math.PI), 1/3);
                             const a_ideal = 2 * Math.PI * r_ideal * (2 * r_ideal) + 2 * Math.PI * r_ideal * r_ideal;
                             const max_profit = (v * 0.05) - (a_ideal * 0.02);
-                            const target_profit = max_profit * 0.95; // 95% of max efficiency
+                            const target_profit = max_profit * 0.95; 
                             
                             return { 
                                 targetVolume: v, 
@@ -258,14 +273,13 @@
                 setGameState('playing');
                 setValidation({ vol: false, constraint: false });
                 setParams({ radius: 3, height: 5, width: 4, depth: 4 }); 
-                setShowNet(false); // Reset view
+                setShowNet(false); 
             };
 
             useEffect(() => { if (mode === 'game' && !scenario) generateScenario(); }, [mode]);
 
             useEffect(() => {
                 if (!scenario || mode !== 'game') return;
-                // Allow 5% error margin for volume
                 const isVolOk = Math.abs(currentVolume - scenario.targetVolume) < (scenario.targetVolume * 0.05);
                 let isConstraintOk = false;
                 
@@ -328,50 +342,32 @@
                 const gridHelper = new THREE.GridHelper(30, 30, 0x94a3b8, 0xe2e8f0);
                 scene.add(gridHelper);
 
-                // Reference Object: Pencil Group
+                // Reference Object: Pencil
                 const pencilGroup = new THREE.Group();
-
-                // Body (Yellow Hexagon) - 6 radial segments for hexagon
-                const bodyGeo = new THREE.CylinderGeometry(0.35, 0.35, 14, 6);
-                const bodyMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 }); 
-                const body = new THREE.Mesh(bodyGeo, bodyMat);
-                body.position.y = 0;
+                // Body
+                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 14, 6), new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 }));
                 pencilGroup.add(body);
-
-                // Ferrule (Silver)
-                const ferruleGeo = new THREE.CylinderGeometry(0.36, 0.36, 1.5, 32);
-                const ferruleMat = new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.7, roughness: 0.3 });
-                const ferrule = new THREE.Mesh(ferruleGeo, ferruleMat);
-                ferrule.position.y = 7.75; // 7 + 0.75
+                // Ferrule
+                const ferrule = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 1.5, 32), new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.7, roughness: 0.3 }));
+                ferrule.position.y = 7.75;
                 pencilGroup.add(ferrule);
-
-                // Eraser (Pink)
-                const eraserGeo = new THREE.CylinderGeometry(0.35, 0.35, 1.5, 32);
-                const eraserMat = new THREE.MeshStandardMaterial({ color: 0xf472b6, roughness: 0.9 });
-                const eraser = new THREE.Mesh(eraserGeo, eraserMat);
-                eraser.position.y = 9.25; // 7.75 + 0.75 + 0.75
+                // Eraser
+                const eraser = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 1.5, 32), new THREE.MeshStandardMaterial({ color: 0xf472b6, roughness: 0.9 }));
+                eraser.position.y = 9.25;
                 pencilGroup.add(eraser);
-
-                // Wood Cone
-                const woodGeo = new THREE.CylinderGeometry(0.35, 0.1, 2, 32);
-                const woodMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 1.0 });
-                const wood = new THREE.Mesh(woodGeo, woodMat);
+                // Wood
+                const wood = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.1, 2, 32), new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 1.0 }));
                 wood.position.y = -8;
                 pencilGroup.add(wood);
-
-                // Lead Tip (Black)
-                const leadGeo = new THREE.CylinderGeometry(0.1, 0.02, 0.5, 32);
-                const leadMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 1.0 });
-                const lead = new THREE.Mesh(leadGeo, leadMat);
+                // Lead
+                const lead = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.02, 0.5, 32), new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 1.0 }));
                 lead.position.y = -9.25;
                 pencilGroup.add(lead);
 
-                // Position group to the side and lay flat
-                pencilGroup.rotation.z = Math.PI / 2; // Lay flat
-                pencilGroup.rotation.y = -Math.PI / 4; // Slight angle
+                pencilGroup.rotation.z = Math.PI / 2;
+                pencilGroup.rotation.y = -Math.PI / 4;
                 pencilGroup.position.set(8, 0.4, 2);
                 pencilGroup.visible = false;
-                
                 scene.add(pencilGroup);
                 refObjRef.current = pencilGroup;
 
@@ -379,7 +375,7 @@
                 const animate = () => {
                     if (meshRef.current && !isDragging.current) {
                         meshRef.current.rotation.y += 0.003;
-                        if (netRef.current) netRef.current.rotation.y += 0.003; // Sync rotation
+                        if (netRef.current) netRef.current.rotation.y += 0.003;
                     } else if (meshRef.current) {
                          meshRef.current.rotation.y = rotationRef.current.y;
                          meshRef.current.rotation.x = rotationRef.current.x;
@@ -397,18 +393,16 @@
 
                 // Resize
                 const resizeObserver = new ResizeObserver((entries) => {
-                    window.requestAnimationFrame(() => {
-                        if (!Array.isArray(entries) || !entries.length) return;
-                        if (mountRef.current && cameraRef.current && rendererRef.current) {
-                            const w = mountRef.current.clientWidth;
-                            const h = mountRef.current.clientHeight;
-                            if (w > 0 && h > 0) {
-                                cameraRef.current.aspect = w / h;
-                                cameraRef.current.updateProjectionMatrix();
-                                rendererRef.current.setSize(w, h);
-                            }
+                    if (!Array.isArray(entries) || !entries.length) return;
+                    if (mountRef.current && cameraRef.current && rendererRef.current) {
+                        const w = mountRef.current.clientWidth;
+                        const h = mountRef.current.clientHeight;
+                        if (w > 0 && h > 0) {
+                            cameraRef.current.aspect = w / h;
+                            cameraRef.current.updateProjectionMatrix();
+                            rendererRef.current.setSize(w, h);
                         }
-                    });
+                    }
                 });
                 resizeObserver.observe(mountRef.current);
 
@@ -424,20 +418,15 @@
             useEffect(() => {
                 if (!sceneRef.current) return;
                 
-                // Cleanup
-                const cleanGroup = (ref) => {
-                    if (ref.current) {
-                        sceneRef.current.remove(ref.current);
-                        ref.current.traverse((child) => {
-                            if (child.geometry) child.geometry.dispose();
-                            if (child.material) child.material.dispose();
-                        });
-                    }
-                };
-                cleanGroup(meshRef);
-                cleanGroup(netRef);
+                if (meshRef.current) {
+                    sceneRef.current.remove(meshRef.current);
+                    meshRef.current.traverse(c => { if(c.geometry) c.geometry.dispose(); if(c.material) c.material.dispose(); });
+                }
+                if (netRef.current) {
+                    sceneRef.current.remove(netRef.current);
+                    netRef.current.traverse(c => { if(c.geometry) c.geometry.dispose(); if(c.material) c.material.dispose(); });
+                }
 
-                // --- 3D Shape ---
                 const p = params;
                 const scale = 0.5;
                 let geo;
@@ -454,7 +443,7 @@
                     roughness: shapeConfig.matProps.roughness,
                     clearcoat: shapeConfig.matProps.clearcoat,
                     transparent: true,
-                    opacity: showNet ? 0.2 : 0.95 // Fade out if net is shown
+                    opacity: showNet ? 0.2 : 0.95 
                 });
 
                 const mesh = new THREE.Mesh(geo, material);
@@ -471,78 +460,38 @@
                 sceneRef.current.add(mesh);
                 meshRef.current = mesh;
 
-                // --- 2D Net (Simplified Representation) ---
                 if (showNet) {
                     const netGroup = new THREE.Group();
                     const netMat = new THREE.MeshBasicMaterial({ color: baseColor, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
-                    const netLine = new THREE.LineBasicMaterial({ color: 0xffffff });
-
+                    
                     if (currentShapeId === 'cylinder') {
-                        // Body (Rect)
-                        const circumference = 2 * Math.PI * p.radius * scale;
+                        const c = 2 * Math.PI * p.radius * scale;
                         const h = p.height * scale;
-                        const bodyGeo = new THREE.PlaneGeometry(circumference, h);
-                        const body = new THREE.Mesh(bodyGeo, netMat);
+                        const body = new THREE.Mesh(new THREE.PlaneGeometry(c, h), netMat);
                         body.position.set(0, h/2, 0);
                         netGroup.add(body);
-                        
-                        // Top Circle
-                        const circGeo = new THREE.CircleGeometry(p.radius * scale, 32);
-                        const top = new THREE.Mesh(circGeo, netMat);
+                        const top = new THREE.Mesh(new THREE.CircleGeometry(p.radius * scale, 32), netMat);
                         top.position.set(0, h + p.radius*scale + 0.2, 0);
-                        top.rotation.x = -Math.PI / 2; // Flat facing Y
-                        // Actually for net view, let's put them all on vertical plane for visibility or flat on ground?
-                        // Let's flat on Z plane to look like a chart behind the object
-                        top.rotation.x = 0;
                         netGroup.add(top);
-
-                        // Bottom Circle
-                        const bot = new THREE.Mesh(circGeo, netMat);
+                        const bot = new THREE.Mesh(new THREE.CircleGeometry(p.radius * scale, 32), netMat);
                         bot.position.set(0, -p.radius*scale - 0.2, 0);
                         netGroup.add(bot);
                     } else if (currentShapeId === 'cube') {
-                        // Cross shape
-                        const w = p.width * scale; 
-                        const h = p.height * scale;
-                        const d = p.depth * scale;
-                        // Center (Front)
+                        const w = p.width * scale; const h = p.height * scale; const d = p.depth * scale;
                         const center = new THREE.Mesh(new THREE.PlaneGeometry(w, h), netMat);
                         netGroup.add(center);
-                        // Top
-                        const top = new THREE.Mesh(new THREE.PlaneGeometry(w, d), netMat);
-                        top.position.y = h/2 + d/2;
-                        netGroup.add(top);
-                        // Bottom
-                        const bot = new THREE.Mesh(new THREE.PlaneGeometry(w, d), netMat);
-                        bot.position.y = -h/2 - d/2;
-                        netGroup.add(bot);
-                        // Left
-                        const left = new THREE.Mesh(new THREE.PlaneGeometry(d, h), netMat);
-                        left.position.x = -w/2 - d/2;
-                        netGroup.add(left);
-                        // Right
-                        const right = new THREE.Mesh(new THREE.PlaneGeometry(d, h), netMat);
-                        right.position.x = w/2 + d/2;
-                        netGroup.add(right);
-                        // Back (attached to right)
-                        const back = new THREE.Mesh(new THREE.PlaneGeometry(w, h), netMat);
-                        back.position.x = w/2 + d + w/2;
-                        netGroup.add(back);
+                        const top = new THREE.Mesh(new THREE.PlaneGeometry(w, d), netMat); top.position.y = h/2 + d/2; netGroup.add(top);
+                        const bot = new THREE.Mesh(new THREE.PlaneGeometry(w, d), netMat); bot.position.y = -h/2 - d/2; netGroup.add(bot);
+                        const left = new THREE.Mesh(new THREE.PlaneGeometry(d, h), netMat); left.position.x = -w/2 - d/2; netGroup.add(left);
+                        const right = new THREE.Mesh(new THREE.PlaneGeometry(d, h), netMat); right.position.x = w/2 + d/2; netGroup.add(right);
+                        const back = new THREE.Mesh(new THREE.PlaneGeometry(w, h), netMat); back.position.x = w/2 + d + w/2; netGroup.add(back);
                     }
-                    
-                    // Position net next to object
-                    netGroup.position.x = -8; 
-                    netGroup.position.y = 4;
-                    
-                    // Make net look at camera roughly or just billboard? 
-                    // Let's just rotate it to be visible
+                    netGroup.position.set(-8, 4, 0);
                     netGroup.rotation.y = Math.PI / 4;
-                    
                     sceneRef.current.add(netGroup);
                     netRef.current = netGroup;
                 }
 
-                // Update Ref Object Visibility
                 if (refObjRef.current) refObjRef.current.visible = showRefObj;
 
             }, [currentShapeId, params, mode, validation, showNet, showRefObj]);
