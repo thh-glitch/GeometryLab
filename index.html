@@ -77,7 +77,6 @@
     
     <!-- Error Suppression Script -->
     <script>
-        // Suppress benign ResizeObserver loop errors
         const _ResizeObserver = window.ResizeObserver;
         window.ResizeObserver = class ResizeObserver extends _ResizeObserver {
             constructor(callback) {
@@ -98,7 +97,7 @@
         import React, { useState, useEffect, useRef, useMemo } from 'react';
         import { createRoot } from 'react-dom/client';
         import * as THREE from 'three';
-        import { Box, Cylinder, Cone, Trophy, AlertCircle, RotateCcw, Ruler, DollarSign, Leaf, Package, Calculator, Sparkles, Zap, CheckCircle2, XCircle, ArrowRight, TrendingUp, Smartphone, Grid3X3, Coins, Pencil } from 'lucide-react';
+        import { Box, Cylinder, Cone, Trophy, AlertCircle, RotateCcw, Ruler, DollarSign, Leaf, Package, Calculator, Sparkles, Zap, CheckCircle2, XCircle, ArrowRight, TrendingUp, Smartphone, Grid3X3, Coins, Pencil, Share2, Check, ClipboardCopy } from 'lucide-react';
         import confetti from 'canvas-confetti';
         import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceDot } from 'recharts';
 
@@ -193,6 +192,7 @@
             const [gameState, setGameState] = useState('playing'); 
             const [validation, setValidation] = useState({ vol: false, constraint: false });
             const [streak, setStreak] = useState(0);
+            const [copied, setCopied] = useState(false);
             
             // Toggles
             const [showNet, setShowNet] = useState(false); 
@@ -221,6 +221,28 @@
                     return (revenue - cost).toFixed(2);
                 }
                 return 0;
+            };
+
+            // --- Share Functionality ---
+            const handleShare = () => {
+                const profitInfo = scenario?.type === 'tycoon' ? `\nProfit: $${calculateProfit()}` : '';
+                const targetInfo = scenario ? `\nTarget: ${scenario.targetVolume}ml | Constraint: ${scenario.constraintText}` : '';
+                
+                const textToCopy = `Geometry Design Check!\nShape: ${shapeConfig.name}\nVolume: ${formatNum(currentVolume)} ml\nArea: ${formatNum(currentArea)} cm²${profitInfo}${targetInfo}`;
+
+                // Fallback for iframe environments where navigator.clipboard might be restricted
+                const textArea = document.createElement("textarea");
+                textArea.value = textToCopy;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                } catch (err) {
+                    console.error('Failed to copy', err);
+                }
+                document.body.removeChild(textArea);
             };
 
             // --- Scenarios ---
@@ -525,12 +547,17 @@
                                         <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Factory Edition</p>
                                     </div>
                                 </div>
-                                {mode === 'game' && (
-                                    <div className="flex items-center gap-1.5 bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 px-3 py-1.5 rounded-full text-xs font-bold border border-amber-200 shadow-sm">
-                                        <Zap size={14} fill="currentColor" />
-                                        Streak: {streak}
-                                    </div>
-                                )}
+                                <div className="flex gap-2">
+                                    <button onClick={handleShare} className={`p-2 rounded-full transition-all ${copied ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`} title="Copy Stats">
+                                        {copied ? <Check size={18} /> : <ClipboardCopy size={18} />}
+                                    </button>
+                                    {mode === 'game' && (
+                                        <div className="flex items-center gap-1.5 bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 px-3 py-1.5 rounded-full text-xs font-bold border border-amber-200 shadow-sm">
+                                            <Zap size={14} fill="currentColor" />
+                                            Streak: {streak}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="flex bg-slate-100/80 p-1.5 rounded-xl relative border border-slate-200">
