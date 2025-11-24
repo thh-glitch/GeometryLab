@@ -1,528 +1,582 @@
-import React, { useState, useEffect, useRef } from 'react';
-import * as THREE from 'three';
-import { Box, Cylinder, Cone, Trophy, AlertCircle, RotateCcw, Ruler, DollarSign, Leaf, Package, Calculator } from 'lucide-react';
-
-// --- Utility Functions ---
-const formatNum = (num) => parseFloat(num.toFixed(1));
-
-// --- Shape Database ---
-const SHAPES = {
-  cylinder: {
-    id: 'cylinder',
-    name: 'Cylinder',
-    realName: 'Soda Can',
-    icon: <Cylinder size={20} />,
-    limits: { radius: [1.5, 6], height: [2, 12] },
-    colors: { math: 0x6366f1, real: 0xe11d48 },
-    formulas: {
-      volume: (p) => Math.PI * Math.pow(p.radius, 2) * p.height,
-      area: (p) => 2 * Math.PI * p.radius * p.height + 2 * Math.PI * Math.pow(p.radius, 2),
-      volumeTex: 'V = \\pi r^2 h',
-    }
-  },
-  cone: {
-    id: 'cone',
-    name: 'Cone',
-    realName: 'Ice Cream Cone',
-    icon: <div className="rotate-180"><Cone size={20} /></div>, 
-    limits: { radius: [2, 7], height: [3, 14] },
-    colors: { math: 0x6366f1, real: 0xd97706 },
-    formulas: {
-      volume: (p) => (1/3) * Math.PI * Math.pow(p.radius, 2) * p.height,
-      area: (p) => Math.PI * p.radius * (p.radius + Math.sqrt(p.radius**2 + p.height**2)),
-      volumeTex: 'V = \\frac{1}{3} \\pi r^2 h',
-    }
-  },
-  cube: {
-    id: 'cube',
-    name: 'Cuboid',
-    realName: 'Shipping Box',
-    icon: <Box size={20} />,
-    limits: { width: [2, 8], height: [2, 8], depth: [2, 8] },
-    colors: { math: 0x6366f1, real: 0x854d0e },
-    formulas: {
-      volume: (p) => p.width * p.height * p.depth,
-      area: (p) => 2 * (p.width * p.depth + p.height * p.depth + p.width * p.height),
-      volumeTex: 'V = l \\times w \\times h',
-    }
-  }
-};
-
-const GeometryLab = () => {
-  const mountRef = useRef(null);
-  
-  // --- State Management ---
-  const [mode, setMode] = useState('explore'); 
-  const [currentShapeId, setCurrentShapeId] = useState('cylinder');
-  const [params, setParams] = useState({ radius: 3, height: 5, width: 4, depth: 4 }); 
-  
-  // Game Scenario State
-  const [scenario, setScenario] = useState(null);
-  const [gameState, setGameState] = useState('playing'); // 'playing', 'success'
-  const [validation, setValidation] = useState({ vol: false, constraint: false });
-
-  // Three.js Refs
-  const sceneRef = useRef(null);
-  const meshRef = useRef(null);
-  const rendererRef = useRef(null);
-  const cameraRef = useRef(null);
-  const animationFrameRef = useRef(null);
-  const isDragging = useRef(false);
-  const previousMousePosition = useRef({ x: 0, y: 0 });
-  const rotationRef = useRef({ x: 0.3, y: 0.5 });
-
-  const shapeConfig = SHAPES[currentShapeId];
-  
-  // Calculate current values
-  const currentVolume = shapeConfig.formulas.volume(params);
-  const currentArea = shapeConfig.formulas.area(params);
-
-  // --- Random Scenario Generator ---
-  const generateScenario = () => {
-    const scenarios = [
-      {
-        type: 'eco_friendly',
-        shapeId: 'cylinder',
-        title: 'Eco-Friendly Plan',
-        icon: <Leaf className="text-green-500" />,
-        desc: 'The EPA requires a redesign of the soda can. Minimize aluminum usage (surface area) while maintaining volume to reduce carbon footprint.',
-        gen: () => {
-          const targetV = Math.floor(Math.random() * 200) + 300; 
-          const r_ideal = Math.pow(targetV / (2 * Math.PI), 1/3);
-          const area_ideal = 2 * Math.PI * r_ideal * (2 * r_ideal) + 2 * Math.PI * r_ideal * r_ideal; 
-          const limitArea = Math.ceil(area_ideal * 1.15); 
-          return {
-            targetVolume: targetV,
-            constraintType: 'area',
-            constraintValue: limitArea,
-            constraintText: `Surface Area < ${limitArea} cm²`,
-            knowledge: 'For a cylinder, surface area is minimized when height equals diameter (h=2r). This explains why most cans are short and stout rather than tall and thin.'
-          };
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometry Designer</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Import Map for React, Three.js, and Icons -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "three": "https://esm.sh/three@0.160.0",
+            "lucide-react": "https://esm.sh/lucide-react@0.300.0?deps=react@18.2.0"
         }
-      },
-      {
-        type: 'shelf_limit',
-        shapeId: 'cube',
-        title: 'Shelf Constraint',
-        icon: <Package className="text-amber-600" />,
-        desc: 'We are launching a family-sized cereal box. It needs sufficient volume, but shelf height is limited. Design a package that fits.',
-        gen: () => {
-          const targetV = Math.floor(Math.random() * 300) + 500; 
-          const maxHeight = Math.floor(Math.random() * 3) + 6; 
-          return {
-            targetVolume: targetV,
-            constraintType: 'height',
-            constraintValue: maxHeight,
-            constraintText: `Height must be ≤ ${maxHeight} cm`,
-            knowledge: 'In logistics and retail, volume isn\'t the only factor. "Space utilization" and "shelf limits" often dictate the final aspect ratio.'
-          };
+    }
+    </script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        /* Custom animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-      },
-      {
-        type: 'cost_control',
-        shapeId: 'cone',
-        title: 'Cost Control',
-        icon: <DollarSign className="text-rose-500" />,
-        desc: 'This is a premium cone. The boss wants it to look big (tall enough) visually, but actual volume must be controlled to save ingredients.',
-        gen: () => {
-          const targetV = Math.floor(Math.random() * 100) + 150; 
-          const minHeight = 8;
-          return {
-            targetVolume: targetV,
-            constraintType: 'min_height',
-            constraintValue: minHeight,
-            constraintText: `Height must be ≥ ${minHeight} cm`,
-            knowledge: 'A cone\'s volume is 1/3 of a cylinder with the same base and height. This allows businesses to make products that "look tall but hold less".'
-          };
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
         }
-      }
-    ];
-
-    const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
-    const details = randomScenario.gen();
-    
-    setCurrentShapeId(randomScenario.shapeId);
-    setScenario({ ...randomScenario, ...details });
-    setGameState('playing');
-    setValidation({ vol: false, constraint: false });
-    
-    setParams({ radius: 3, height: 5, width: 4, depth: 4 }); 
-  };
-
-  // Initialization
-  useEffect(() => {
-    if (mode === 'game' && !scenario) generateScenario();
-  }, [mode]);
-
-  // --- Validation Logic ---
-  useEffect(() => {
-    if (!scenario || mode !== 'game') return;
-
-    // 1. Validate Volume (5% margin)
-    const isVolOk = Math.abs(currentVolume - scenario.targetVolume) < (scenario.targetVolume * 0.05);
-    
-    // 2. Validate Constraints
-    let isConstraintOk = false;
-    if (scenario.constraintType === 'area') {
-      isConstraintOk = currentArea <= scenario.constraintValue;
-    } else if (scenario.constraintType === 'height') {
-      isConstraintOk = params.height <= scenario.constraintValue;
-    } else if (scenario.constraintType === 'min_height') {
-      isConstraintOk = params.height >= scenario.constraintValue;
-    }
-
-    setValidation({ vol: isVolOk, constraint: isConstraintOk });
-
-  }, [currentVolume, currentArea, params, scenario, mode]);
-
-  const handleSubmit = () => {
-    if (validation.vol && validation.constraint) {
-      setGameState('success');
-    }
-  };
-
-  const updateParam = (k, v) => setParams(p => ({ ...p, [k]: parseFloat(v) }));
-
-
-  // --- Three.js ---
-  useEffect(() => {
-    if (!mountRef.current) return;
-    const scene = new THREE.Scene();
-    sceneRef.current = scene;
-    scene.background = new THREE.Color(0xf8fafc); // Slate-50
-
-    const width = mountRef.current.clientWidth;
-    const height = mountRef.current.clientHeight;
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(10, 8, 10);
-    camera.lookAt(0, 3, 0);
-    cameraRef.current = camera;
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.shadowMap.enabled = true;
-    mountRef.current.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
-
-    const ambLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambLight);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(5, 10, 5);
-    dirLight.castShadow = true;
-    scene.add(dirLight);
-
-    const gridHelper = new THREE.GridHelper(30, 30, 0xcbd5e1, 0xe2e8f0);
-    scene.add(gridHelper);
-
-    const animate = () => {
-      if (meshRef.current) {
-        if (!isDragging.current) meshRef.current.rotation.y += 0.002;
-        else {
-          meshRef.current.rotation.y = rotationRef.current.y;
-          meshRef.current.rotation.x = rotationRef.current.x;
+        @keyframes bounceIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            60% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); }
         }
-      }
-      renderer.render(scene, camera);
-      animationFrameRef.current = requestAnimationFrame(animate);
-    };
-    animate();
+        .animate-bounce-in {
+            animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        body { margin: 0; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-    const handleResize = () => {
-      if (!mountRef.current) return;
-      const w = mountRef.current.clientWidth;
-      const h = mountRef.current.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    };
-    window.addEventListener('resize', handleResize);
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import * as THREE from 'three';
+        import { Box, Cylinder, Cone, Trophy, AlertCircle, RotateCcw, Ruler, DollarSign, Leaf, Package, Calculator } from 'lucide-react';
 
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (mountRef.current && renderer.domElement) mountRef.current.removeChild(renderer.domElement);
-      cancelAnimationFrame(animationFrameRef.current);
-      renderer.dispose();
-    };
-  }, []);
+        // --- Utility Functions ---
+        const formatNum = (num) => parseFloat(num.toFixed(1));
 
-  // Update Mesh
-  useEffect(() => {
-    if (!sceneRef.current) return;
-    if (meshRef.current) {
-      sceneRef.current.remove(meshRef.current);
-      meshRef.current.geometry.dispose();
-      meshRef.current.material.dispose();
-      meshRef.current.children.forEach(c => { if(c.geometry) c.geometry.dispose(); });
-    }
+        // --- Shape Database ---
+        const SHAPES = {
+        cylinder: {
+            id: 'cylinder',
+            name: 'Cylinder',
+            realName: 'Soda Can',
+            icon: <Cylinder size={20} />,
+            limits: { radius: [1.5, 6], height: [2, 12] },
+            colors: { math: 0x6366f1, real: 0xe11d48 },
+            formulas: {
+            volume: (p) => Math.PI * Math.pow(p.radius, 2) * p.height,
+            area: (p) => 2 * Math.PI * p.radius * p.height + 2 * Math.PI * Math.pow(p.radius, 2),
+            volumeTex: 'V = \\pi r^2 h',
+            }
+        },
+        cone: {
+            id: 'cone',
+            name: 'Cone',
+            realName: 'Ice Cream Cone',
+            icon: <div className="rotate-180"><Cone size={20} /></div>, 
+            limits: { radius: [2, 7], height: [3, 14] },
+            colors: { math: 0x6366f1, real: 0xd97706 },
+            formulas: {
+            volume: (p) => (1/3) * Math.PI * Math.pow(p.radius, 2) * p.height,
+            area: (p) => Math.PI * p.radius * (p.radius + Math.sqrt(p.radius**2 + p.height**2)),
+            volumeTex: 'V = \\frac{1}{3} \\pi r^2 h',
+            }
+        },
+        cube: {
+            id: 'cube',
+            name: 'Cuboid',
+            realName: 'Shipping Box',
+            icon: <Box size={20} />,
+            limits: { width: [2, 8], height: [2, 8], depth: [2, 8] },
+            colors: { math: 0x6366f1, real: 0x854d0e },
+            formulas: {
+            volume: (p) => p.width * p.height * p.depth,
+            area: (p) => 2 * (p.width * p.depth + p.height * p.depth + p.width * p.height),
+            volumeTex: 'V = l \\times w \\times h',
+            }
+        }
+        };
 
-    let geo;
-    const p = params;
-    const scale = 0.5; // Scale for view
-
-    if (currentShapeId === 'cube') geo = new THREE.BoxGeometry(p.width*scale, p.height*scale, p.depth*scale);
-    else if (currentShapeId === 'cylinder') geo = new THREE.CylinderGeometry(p.radius*scale, p.radius*scale, p.height*scale, 32);
-    else if (currentShapeId === 'cone') geo = new THREE.CylinderGeometry(0, p.radius*scale, p.height*scale, 32);
-    else geo = new THREE.BoxGeometry(1, 1, 1);
-
-    // Color logic
-    let color;
-    if (mode === 'game') {
-        color = shapeConfig.colors.real;
-        if (validation.vol && validation.constraint) color = 0x10b981; // Green
-    } else {
-        color = shapeConfig.colors.math; // Purple for explore
-    }
-    
-    const mat = new THREE.MeshStandardMaterial({
-      color: color, roughness: 0.3, metalness: 0.1, transparent: true, opacity: 0.8
-    });
-    
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.castShadow = true;
-    
-    // Align bottom to y=0
-    mesh.position.y = (p.height * scale) / 2;
-
-    const edges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(geo),
-      new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.5, transparent: true })
-    );
-    mesh.add(edges);
-
-    mesh.rotation.x = rotationRef.current.x;
-    mesh.rotation.y = rotationRef.current.y;
-    sceneRef.current.add(mesh);
-    meshRef.current = mesh;
-
-  }, [currentShapeId, params, mode, validation]);
-
-  // Interaction Events
-  const handleMouseDown = (e) => { isDragging.current = true; previousMousePosition.current = { x: e.clientX, y: e.clientY }; };
-  const handleMouseMove = (e) => {
-    if (!isDragging.current) return;
-    const delta = { x: e.clientX - previousMousePosition.current.x, y: e.clientY - previousMousePosition.current.y };
-    rotationRef.current.y += delta.x * 0.01;
-    rotationRef.current.x += delta.y * 0.01;
-    previousMousePosition.current = { x: e.clientX, y: e.clientY };
-  };
-  const handleMouseUp = () => isDragging.current = false;
-
-
-  return (
-    <div className="flex flex-col h-screen bg-slate-50 text-slate-800 font-sans" onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
-      
-      {/* Header */}
-      <header className="bg-white px-6 py-3 flex justify-between items-center shadow-sm z-20">
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg text-white shadow-lg transition-colors ${mode === 'game' ? 'bg-indigo-600 shadow-indigo-200' : 'bg-slate-600'}`}>
-             {mode === 'game' ? <Package size={20} /> : <Calculator size={20} />}
-          </div>
-          <div>
-             <h1 className="text-lg font-bold text-slate-900 tracking-tight">Geometry Designer</h1>
-             <p className="text-xs text-slate-500 font-medium">Spatial Geometry & Optimization</p>
-          </div>
-        </div>
+        const GeometryLab = () => {
+        const mountRef = useRef(null);
         
-        <div className="flex bg-slate-100 p-1 rounded-lg">
-          <button onClick={() => {setMode('explore'); setGameState('playing')}} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${mode === 'explore' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Explore</button>
-          <button onClick={() => {setMode('game'); generateScenario()}} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${mode === 'game' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>Challenge</button>
-        </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
+        // --- State Management ---
+        const [mode, setMode] = useState('explore'); 
+        const [currentShapeId, setCurrentShapeId] = useState('cylinder');
+        const [params, setParams] = useState({ radius: 3, height: 5, width: 4, depth: 4 }); 
         
-        {/* Left Panel */}
-        <aside className="w-full md:w-[420px] bg-white border-r overflow-y-auto z-10 flex flex-col shadow-xl">
-          
-          {mode === 'game' && scenario ? (
-            <div className="p-6 space-y-6 animate-fade-in">
-              {/* Mission Card */}
-              <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl p-5 relative overflow-hidden">
-                <div className="flex items-center gap-2 mb-2 text-indigo-800">
-                  {scenario.icon}
-                  <h3 className="font-bold text-lg">{scenario.title}</h3>
-                </div>
-                <p className="text-sm text-indigo-900/80 mb-4 leading-relaxed font-medium">
-                  {scenario.desc}
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white/60 p-3 rounded-xl border border-indigo-100">
-                    <div className="text-xs text-indigo-500 font-bold uppercase mb-1">Target Volume</div>
-                    <div className="text-2xl font-black text-indigo-700">{scenario.targetVolume} <span className="text-sm font-normal text-indigo-500">ml</span></div>
-                  </div>
-                  <div className="bg-white/60 p-3 rounded-xl border border-red-100 relative">
-                     {validation.constraint && <div className="absolute top-2 right-2 text-green-500"><Leaf size={16}/></div>}
-                    <div className="text-xs text-red-500 font-bold uppercase mb-1">Constraint</div>
-                    <div className="text-sm font-bold text-red-700 mt-1">{scenario.constraintText}</div>
-                  </div>
-                </div>
-              </div>
+        // Game Scenario State
+        const [scenario, setScenario] = useState(null);
+        const [gameState, setGameState] = useState('playing'); // 'playing', 'success'
+        const [validation, setValidation] = useState({ vol: false, constraint: false });
 
-              {/* Status Indicators */}
-              <div className="space-y-4">
-                {/* Volume Check */}
-                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                  <div className="text-sm font-bold text-slate-600">Current Volume</div>
-                  <div className={`flex items-center gap-2 font-mono font-bold ${validation.vol ? 'text-green-600' : 'text-slate-400'}`}>
-                    {formatNum(currentVolume)} ml
-                    {validation.vol ? <Trophy size={16}/> : <span className="text-xs bg-slate-200 px-1 rounded text-slate-500">Pending</span>}
-                  </div>
+        // Three.js Refs
+        const sceneRef = useRef(null);
+        const meshRef = useRef(null);
+        const rendererRef = useRef(null);
+        const cameraRef = useRef(null);
+        const animationFrameRef = useRef(null);
+        const isDragging = useRef(false);
+        const previousMousePosition = useRef({ x: 0, y: 0 });
+        const rotationRef = useRef({ x: 0.3, y: 0.5 });
+
+        const shapeConfig = SHAPES[currentShapeId];
+        
+        // Calculate current values
+        const currentVolume = shapeConfig.formulas.volume(params);
+        const currentArea = shapeConfig.formulas.area(params);
+
+        // --- Random Scenario Generator ---
+        const generateScenario = () => {
+            const scenarios = [
+            {
+                type: 'eco_friendly',
+                shapeId: 'cylinder',
+                title: 'Eco-Friendly Plan',
+                icon: <Leaf className="text-green-500" />,
+                desc: 'The EPA requires a redesign of the soda can. Minimize aluminum usage (surface area) while maintaining volume to reduce carbon footprint.',
+                gen: () => {
+                const targetV = Math.floor(Math.random() * 200) + 300; 
+                const r_ideal = Math.pow(targetV / (2 * Math.PI), 1/3);
+                const area_ideal = 2 * Math.PI * r_ideal * (2 * r_ideal) + 2 * Math.PI * r_ideal * r_ideal; 
+                const limitArea = Math.ceil(area_ideal * 1.15); 
+                return {
+                    targetVolume: targetV,
+                    constraintType: 'area',
+                    constraintValue: limitArea,
+                    constraintText: `Surface Area < ${limitArea} cm²`,
+                    knowledge: 'For a cylinder, surface area is minimized when height equals diameter (h=2r). This explains why most cans are short and stout rather than tall and thin.'
+                };
+                }
+            },
+            {
+                type: 'shelf_limit',
+                shapeId: 'cube',
+                title: 'Shelf Constraint',
+                icon: <Package className="text-amber-600" />,
+                desc: 'We are launching a family-sized cereal box. It needs sufficient volume, but shelf height is limited. Design a package that fits.',
+                gen: () => {
+                const targetV = Math.floor(Math.random() * 300) + 500; 
+                const maxHeight = Math.floor(Math.random() * 3) + 6; 
+                return {
+                    targetVolume: targetV,
+                    constraintType: 'height',
+                    constraintValue: maxHeight,
+                    constraintText: `Height must be ≤ ${maxHeight} cm`,
+                    knowledge: 'In logistics and retail, volume isn\'t the only factor. "Space utilization" and "shelf limits" often dictate the final aspect ratio.'
+                };
+                }
+            },
+            {
+                type: 'cost_control',
+                shapeId: 'cone',
+                title: 'Cost Control',
+                icon: <DollarSign className="text-rose-500" />,
+                desc: 'This is a premium cone. The boss wants it to look big (tall enough) visually, but actual volume must be controlled to save ingredients.',
+                gen: () => {
+                const targetV = Math.floor(Math.random() * 100) + 150; 
+                const minHeight = 8;
+                return {
+                    targetVolume: targetV,
+                    constraintType: 'min_height',
+                    constraintValue: minHeight,
+                    constraintText: `Height must be ≥ ${minHeight} cm`,
+                    knowledge: 'A cone\'s volume is 1/3 of a cylinder with the same base and height. This allows businesses to make products that "look tall but hold less".'
+                };
+                }
+            }
+            ];
+
+            const randomScenario = scenarios[Math.floor(Math.random() * scenarios.length)];
+            const details = randomScenario.gen();
+            
+            setCurrentShapeId(randomScenario.shapeId);
+            setScenario({ ...randomScenario, ...details });
+            setGameState('playing');
+            setValidation({ vol: false, constraint: false });
+            
+            setParams({ radius: 3, height: 5, width: 4, depth: 4 }); 
+        };
+
+        // Initialization
+        useEffect(() => {
+            if (mode === 'game' && !scenario) generateScenario();
+        }, [mode]);
+
+        // --- Validation Logic ---
+        useEffect(() => {
+            if (!scenario || mode !== 'game') return;
+
+            // 1. Validate Volume (5% margin)
+            const isVolOk = Math.abs(currentVolume - scenario.targetVolume) < (scenario.targetVolume * 0.05);
+            
+            // 2. Validate Constraints
+            let isConstraintOk = false;
+            if (scenario.constraintType === 'area') {
+            isConstraintOk = currentArea <= scenario.constraintValue;
+            } else if (scenario.constraintType === 'height') {
+            isConstraintOk = params.height <= scenario.constraintValue;
+            } else if (scenario.constraintType === 'min_height') {
+            isConstraintOk = params.height >= scenario.constraintValue;
+            }
+
+            setValidation({ vol: isVolOk, constraint: isConstraintOk });
+
+        }, [currentVolume, currentArea, params, scenario, mode]);
+
+        const handleSubmit = () => {
+            if (validation.vol && validation.constraint) {
+            setGameState('success');
+            }
+        };
+
+        const updateParam = (k, v) => setParams(p => ({ ...p, [k]: parseFloat(v) }));
+
+
+        // --- Three.js ---
+        useEffect(() => {
+            if (!mountRef.current) return;
+            const scene = new THREE.Scene();
+            sceneRef.current = scene;
+            scene.background = new THREE.Color(0xf8fafc); // Slate-50
+
+            const width = mountRef.current.clientWidth;
+            const height = mountRef.current.clientHeight;
+            const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+            camera.position.set(10, 8, 10);
+            camera.lookAt(0, 3, 0);
+            cameraRef.current = camera;
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            mountRef.current.appendChild(renderer.domElement);
+            rendererRef.current = renderer;
+
+            const ambLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(5, 10, 5);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            const gridHelper = new THREE.GridHelper(30, 30, 0xcbd5e1, 0xe2e8f0);
+            scene.add(gridHelper);
+
+            const animate = () => {
+            if (meshRef.current) {
+                if (!isDragging.current) meshRef.current.rotation.y += 0.002;
+                else {
+                meshRef.current.rotation.y = rotationRef.current.y;
+                meshRef.current.rotation.x = rotationRef.current.x;
+                }
+            }
+            renderer.render(scene, camera);
+            animationFrameRef.current = requestAnimationFrame(animate);
+            };
+            animate();
+
+            const handleResize = () => {
+            if (!mountRef.current) return;
+            const w = mountRef.current.clientWidth;
+            const h = mountRef.current.clientHeight;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+            };
+            window.addEventListener('resize', handleResize);
+
+            return () => {
+            window.removeEventListener('resize', handleResize);
+            if (mountRef.current && renderer.domElement) mountRef.current.removeChild(renderer.domElement);
+            cancelAnimationFrame(animationFrameRef.current);
+            renderer.dispose();
+            };
+        }, []);
+
+        // Update Mesh
+        useEffect(() => {
+            if (!sceneRef.current) return;
+            if (meshRef.current) {
+            sceneRef.current.remove(meshRef.current);
+            meshRef.current.geometry.dispose();
+            meshRef.current.material.dispose();
+            meshRef.current.children.forEach(c => { if(c.geometry) c.geometry.dispose(); });
+            }
+
+            let geo;
+            const p = params;
+            const scale = 0.5; // Scale for view
+
+            if (currentShapeId === 'cube') geo = new THREE.BoxGeometry(p.width*scale, p.height*scale, p.depth*scale);
+            else if (currentShapeId === 'cylinder') geo = new THREE.CylinderGeometry(p.radius*scale, p.radius*scale, p.height*scale, 32);
+            else if (currentShapeId === 'cone') geo = new THREE.CylinderGeometry(0, p.radius*scale, p.height*scale, 32);
+            else geo = new THREE.BoxGeometry(1, 1, 1);
+
+            // Color logic
+            let color;
+            if (mode === 'game') {
+                color = shapeConfig.colors.real;
+                if (validation.vol && validation.constraint) color = 0x10b981; // Green
+            } else {
+                color = shapeConfig.colors.math; // Purple for explore
+            }
+            
+            const mat = new THREE.MeshStandardMaterial({
+            color: color, roughness: 0.3, metalness: 0.1, transparent: true, opacity: 0.8
+            });
+            
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = true;
+            
+            // Align bottom to y=0
+            mesh.position.y = (p.height * scale) / 2;
+
+            const edges = new THREE.LineSegments(
+            new THREE.EdgesGeometry(geo),
+            new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.5, transparent: true })
+            );
+            mesh.add(edges);
+
+            mesh.rotation.x = rotationRef.current.x;
+            mesh.rotation.y = rotationRef.current.y;
+            sceneRef.current.add(mesh);
+            meshRef.current = mesh;
+
+        }, [currentShapeId, params, mode, validation]);
+
+        // Interaction Events
+        const handleMouseDown = (e) => { isDragging.current = true; previousMousePosition.current = { x: e.clientX, y: e.clientY }; };
+        const handleMouseMove = (e) => {
+            if (!isDragging.current) return;
+            const delta = { x: e.clientX - previousMousePosition.current.x, y: e.clientY - previousMousePosition.current.y };
+            rotationRef.current.y += delta.x * 0.01;
+            rotationRef.current.x += delta.y * 0.01;
+            previousMousePosition.current = { x: e.clientX, y: e.clientY };
+        };
+        const handleMouseUp = () => isDragging.current = false;
+
+
+        return (
+            <div className="flex flex-col h-screen bg-slate-50 text-slate-800 font-sans" onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+            
+            {/* Header */}
+            <header className="bg-white px-6 py-3 flex justify-between items-center shadow-sm z-20">
+                <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg text-white shadow-lg transition-colors ${mode === 'game' ? 'bg-indigo-600 shadow-indigo-200' : 'bg-slate-600'}`}>
+                    {mode === 'game' ? <Package size={20} /> : <Calculator size={20} />}
+                </div>
+                <div>
+                    <h1 className="text-lg font-bold text-slate-900 tracking-tight">Geometry Designer</h1>
+                    <p className="text-xs text-slate-500 font-medium">Spatial Geometry & Optimization</p>
+                </div>
                 </div>
                 
-                {/* Constraint Check */}
-                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                  <div className="text-sm font-bold text-slate-600">
-                    {scenario.constraintType === 'area' ? 'Current Area' : 'Current Height'}
-                  </div>
-                  <div className={`flex items-center gap-2 font-mono font-bold ${validation.constraint ? 'text-green-600' : 'text-red-500'}`}>
-                    {scenario.constraintType === 'area' ? formatNum(currentArea) : params.height} 
-                    {scenario.constraintType === 'area' ? 'cm²' : 'cm'}
-                    {validation.constraint ? <Trophy size={16}/> : <AlertCircle size={16}/>}
-                  </div>
+                <div className="flex bg-slate-100 p-1 rounded-lg">
+                <button onClick={() => {setMode('explore'); setGameState('playing')}} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${mode === 'explore' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Explore</button>
+                <button onClick={() => {setMode('game'); generateScenario()}} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${mode === 'game' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>Challenge</button>
                 </div>
-              </div>
+            </header>
 
-              {/* Sliders */}
-              <div className="space-y-5 pt-4 border-t border-slate-100">
-                 {currentShapeId === 'cube' ? (
-                   <>
-                    {['width', 'depth', 'height'].map(k => (
-                      <div key={k}>
-                        <div className="flex justify-between mb-1"><label className="text-xs font-bold text-slate-500 uppercase">{k}</label><span className="text-xs font-mono bg-slate-100 px-2 rounded text-slate-600">{params[k]} cm</span></div>
-                        <input type="range" min={shapeConfig.limits[k][0]} max={shapeConfig.limits[k][1]} step="0.5" value={params[k]} onChange={(e) => updateParam(k, e.target.value)} className="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-500"/>
-                      </div>
-                    ))}
-                   </>
-                 ) : (
-                   <>
-                    {['radius', 'height'].map(k => (
-                      <div key={k}>
-                        <div className="flex justify-between mb-1"><label className="text-xs font-bold text-slate-500 uppercase">{k}</label><span className="text-xs font-mono bg-slate-100 px-2 rounded text-slate-600">{params[k]} cm</span></div>
-                        <input type="range" min={shapeConfig.limits[k][0]} max={shapeConfig.limits[k][1]} step="0.5" value={params[k]} onChange={(e) => updateParam(k, e.target.value)} className="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-500"/>
-                      </div>
-                    ))}
-                   </>
-                 )}
-              </div>
-
-              {/* Submit Area */}
-              {gameState === 'playing' ? (
-                <button 
-                  onClick={handleSubmit}
-                  disabled={!validation.vol || !validation.constraint}
-                  className={`w-full py-3 rounded-xl font-bold text-white shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2
-                    ${(validation.vol && validation.constraint) ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-slate-300 cursor-not-allowed'}`}
-                >
-                  {(validation.vol && validation.constraint) ? 'Submit Design' : 'Requirements Not Met'}
-                </button>
-              ) : (
-                <div className="bg-green-50 border border-green-200 p-5 rounded-2xl animate-bounce-in">
-                  <h3 className="text-green-800 font-bold text-lg mb-2 flex items-center gap-2">🎉 Design Approved!</h3>
-                  <div className="text-sm text-green-700 mb-4 leading-relaxed bg-white/60 p-3 rounded-lg border border-green-100">
-                    <span className="font-bold block mb-1">💡 Math Insight:</span>
-                    {scenario.knowledge}
-                  </div>
-                  <button onClick={generateScenario} className="w-full py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-700 flex items-center justify-center gap-2">
-                    <RotateCcw size={16}/> Next Order
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            // Explore Mode
-            <div className="p-6 space-y-6 animate-fade-in">
-              {/* Shape Selection */}
-              <div className="flex gap-2 mb-4">
-                 {Object.values(SHAPES).map(s => (
-                   <button 
-                     key={s.id} 
-                     onClick={() => setCurrentShapeId(s.id)} 
-                     className={`flex-1 py-2 flex flex-col items-center justify-center gap-1 text-xs font-bold rounded-lg border transition-all ${currentShapeId === s.id ? 'bg-indigo-50 border-indigo-200 text-indigo-600 ring-1 ring-indigo-200' : 'border-slate-200 text-slate-400 hover:bg-slate-50'}`}
-                   >
-                     {s.icon}
-                     {s.name.split(' ')[0]}
-                   </button>
-                 ))}
-              </div>
-
-              {/* Info Card */}
-              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
-                 <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2">
-                   <Ruler size={16} /> Free Measure
-                 </h3>
-                 <div className="font-mono text-indigo-600 font-bold text-sm mb-2">{shapeConfig.formulas.volumeTex}</div>
-                 <p className="text-xs text-slate-500 leading-relaxed">
-                   Adjust parameters below to observe the relationship between volume and surface area.
-                 </p>
-              </div>
-
-              {/* Sliders */}
-              <div className="space-y-5">
-                 {currentShapeId === 'cube' ? (
-                   ['width', 'depth', 'height'].map(k => (
-                      <div key={k}>
-                        <div className="flex justify-between mb-1">
-                          <label className="text-xs font-bold text-slate-500 uppercase">{k}</label>
-                          <span className="text-xs font-mono bg-slate-100 px-2 rounded text-slate-600">{params[k]} cm</span>
+            <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
+                
+                {/* Left Panel */}
+                <aside className="w-full md:w-[420px] bg-white border-r overflow-y-auto z-10 flex flex-col shadow-xl">
+                
+                {mode === 'game' && scenario ? (
+                    <div className="p-6 space-y-6 animate-fade-in">
+                    {/* Mission Card */}
+                    <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 rounded-2xl p-5 relative overflow-hidden">
+                        <div className="flex items-center gap-2 mb-2 text-indigo-800">
+                        {scenario.icon}
+                        <h3 className="font-bold text-lg">{scenario.title}</h3>
                         </div>
-                        <input 
-                          type="range" 
-                          min="1" max="10" step="0.5" 
-                          value={params[k]} 
-                          onChange={(e) => updateParam(k, e.target.value)} 
-                          className="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                        />
-                      </div>
-                   ))
-                 ) : (
-                   ['radius', 'height'].map(k => (
-                      <div key={k}>
-                        <div className="flex justify-between mb-1">
-                          <label className="text-xs font-bold text-slate-500 uppercase">{k}</label>
-                          <span className="text-xs font-mono bg-slate-100 px-2 rounded text-slate-600">{params[k]} cm</span>
+                        <p className="text-sm text-indigo-900/80 mb-4 leading-relaxed font-medium">
+                        {scenario.desc}
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-white/60 p-3 rounded-xl border border-indigo-100">
+                            <div className="text-xs text-indigo-500 font-bold uppercase mb-1">Target Volume</div>
+                            <div className="text-2xl font-black text-indigo-700">{scenario.targetVolume} <span className="text-sm font-normal text-indigo-500">ml</span></div>
                         </div>
-                        <input 
-                          type="range" 
-                          min="1" max="10" step="0.5" 
-                          value={params[k]} 
-                          onChange={(e) => updateParam(k, e.target.value)} 
-                          className="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                        />
-                      </div>
-                   ))
-                 )}
-              </div>
+                        <div className="bg-white/60 p-3 rounded-xl border border-red-100 relative">
+                            {validation.constraint && <div className="absolute top-2 right-2 text-green-500"><Leaf size={16}/></div>}
+                            <div className="text-xs text-red-500 font-bold uppercase mb-1">Constraint</div>
+                            <div className="text-sm font-bold text-red-700 mt-1">{scenario.constraintText}</div>
+                        </div>
+                        </div>
+                    </div>
 
-              {/* Stats Display */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <div className="bg-slate-900 p-3 rounded-xl text-white shadow-lg">
-                  <div className="text-xs text-slate-400 mb-1">Volume</div>
-                  <div className="text-xl font-mono font-bold text-emerald-400">{formatNum(currentVolume)} <span className="text-xs text-slate-500">cm³</span></div>
-                </div>
-                <div className="bg-white border border-slate-200 p-3 rounded-xl">
-                  <div className="text-xs text-slate-500 mb-1">Surface Area</div>
-                  <div className="text-xl font-mono font-bold text-slate-700">{formatNum(currentArea)} <span className="text-xs text-slate-400">cm²</span></div>
-                </div>
-              </div>
+                    {/* Status Indicators */}
+                    <div className="space-y-4">
+                        {/* Volume Check */}
+                        <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div className="text-sm font-bold text-slate-600">Current Volume</div>
+                        <div className={`flex items-center gap-2 font-mono font-bold ${validation.vol ? 'text-green-600' : 'text-slate-400'}`}>
+                            {formatNum(currentVolume)} ml
+                            {validation.vol ? <Trophy size={16}/> : <span className="text-xs bg-slate-200 px-1 rounded text-slate-500">Pending</span>}
+                        </div>
+                        </div>
+                        
+                        {/* Constraint Check */}
+                        <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div className="text-sm font-bold text-slate-600">
+                            {scenario.constraintType === 'area' ? 'Current Area' : 'Current Height'}
+                        </div>
+                        <div className={`flex items-center gap-2 font-mono font-bold ${validation.constraint ? 'text-green-600' : 'text-red-500'}`}>
+                            {scenario.constraintType === 'area' ? formatNum(currentArea) : params.height} 
+                            {scenario.constraintType === 'area' ? 'cm²' : 'cm'}
+                            {validation.constraint ? <Trophy size={16}/> : <AlertCircle size={16}/>}
+                        </div>
+                        </div>
+                    </div>
+
+                    {/* Sliders */}
+                    <div className="space-y-5 pt-4 border-t border-slate-100">
+                        {currentShapeId === 'cube' ? (
+                        <>
+                            {['width', 'depth', 'height'].map(k => (
+                            <div key={k}>
+                                <div className="flex justify-between mb-1"><label className="text-xs font-bold text-slate-500 uppercase">{k}</label><span className="text-xs font-mono bg-slate-100 px-2 rounded text-slate-600">{params[k]} cm</span></div>
+                                <input type="range" min={shapeConfig.limits[k][0]} max={shapeConfig.limits[k][1]} step="0.5" value={params[k]} onChange={(e) => updateParam(k, e.target.value)} className="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-500"/>
+                            </div>
+                            ))}
+                        </>
+                        ) : (
+                        <>
+                            {['radius', 'height'].map(k => (
+                            <div key={k}>
+                                <div className="flex justify-between mb-1"><label className="text-xs font-bold text-slate-500 uppercase">{k}</label><span className="text-xs font-mono bg-slate-100 px-2 rounded text-slate-600">{params[k]} cm</span></div>
+                                <input type="range" min={shapeConfig.limits[k][0]} max={shapeConfig.limits[k][1]} step="0.5" value={params[k]} onChange={(e) => updateParam(k, e.target.value)} className="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-500"/>
+                            </div>
+                            ))}
+                        </>
+                        )}
+                    </div>
+
+                    {/* Submit Area */}
+                    {gameState === 'playing' ? (
+                        <button 
+                        onClick={handleSubmit}
+                        disabled={!validation.vol || !validation.constraint}
+                        className={`w-full py-3 rounded-xl font-bold text-white shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2
+                            ${(validation.vol && validation.constraint) ? 'bg-green-600 hover:bg-green-700 shadow-green-200' : 'bg-slate-300 cursor-not-allowed'}`}
+                        >
+                        {(validation.vol && validation.constraint) ? 'Submit Design' : 'Requirements Not Met'}
+                        </button>
+                    ) : (
+                        <div className="bg-green-50 border border-green-200 p-5 rounded-2xl animate-bounce-in">
+                        <h3 className="text-green-800 font-bold text-lg mb-2 flex items-center gap-2">🎉 Design Approved!</h3>
+                        <div className="text-sm text-green-700 mb-4 leading-relaxed bg-white/60 p-3 rounded-lg border border-green-100">
+                            <span className="font-bold block mb-1">💡 Math Insight:</span>
+                            {scenario.knowledge}
+                        </div>
+                        <button onClick={generateScenario} className="w-full py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-700 flex items-center justify-center gap-2">
+                            <RotateCcw size={16}/> Next Order
+                        </button>
+                        </div>
+                    )}
+                    </div>
+                ) : (
+                    // Explore Mode
+                    <div className="p-6 space-y-6 animate-fade-in">
+                    {/* Shape Selection */}
+                    <div className="flex gap-2 mb-4">
+                        {Object.values(SHAPES).map(s => (
+                        <button 
+                            key={s.id} 
+                            onClick={() => setCurrentShapeId(s.id)} 
+                            className={`flex-1 py-2 flex flex-col items-center justify-center gap-1 text-xs font-bold rounded-lg border transition-all ${currentShapeId === s.id ? 'bg-indigo-50 border-indigo-200 text-indigo-600 ring-1 ring-indigo-200' : 'border-slate-200 text-slate-400 hover:bg-slate-50'}`}
+                        >
+                            {s.icon}
+                            {s.name.split(' ')[0]}
+                        </button>
+                        ))}
+                    </div>
+
+                    {/* Info Card */}
+                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl">
+                        <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2">
+                        <Ruler size={16} /> Free Measure
+                        </h3>
+                        <div className="font-mono text-indigo-600 font-bold text-sm mb-2">{shapeConfig.formulas.volumeTex}</div>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                        Adjust parameters below to observe the relationship between volume and surface area.
+                        </p>
+                    </div>
+
+                    {/* Sliders */}
+                    <div className="space-y-5">
+                        {currentShapeId === 'cube' ? (
+                        ['width', 'depth', 'height'].map(k => (
+                            <div key={k}>
+                                <div className="flex justify-between mb-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase">{k}</label>
+                                <span className="text-xs font-mono bg-slate-100 px-2 rounded text-slate-600">{params[k]} cm</span>
+                                </div>
+                                <input 
+                                type="range" 
+                                min="1" max="10" step="0.5" 
+                                value={params[k]} 
+                                onChange={(e) => updateParam(k, e.target.value)} 
+                                className="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                />
+                            </div>
+                        ))
+                        ) : (
+                        ['radius', 'height'].map(k => (
+                            <div key={k}>
+                                <div className="flex justify-between mb-1">
+                                <label className="text-xs font-bold text-slate-500 uppercase">{k}</label>
+                                <span className="text-xs font-mono bg-slate-100 px-2 rounded text-slate-600">{params[k]} cm</span>
+                                </div>
+                                <input 
+                                type="range" 
+                                min="1" max="10" step="0.5" 
+                                value={params[k]} 
+                                onChange={(e) => updateParam(k, e.target.value)} 
+                                className="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                />
+                            </div>
+                        ))
+                        )}
+                    </div>
+
+                    {/* Stats Display */}
+                    <div className="grid grid-cols-2 gap-3 pt-2">
+                        <div className="bg-slate-900 p-3 rounded-xl text-white shadow-lg">
+                        <div className="text-xs text-slate-400 mb-1">Volume</div>
+                        <div className="text-xl font-mono font-bold text-emerald-400">{formatNum(currentVolume)} <span className="text-xs text-slate-500">cm³</span></div>
+                        </div>
+                        <div className="bg-white border border-slate-200 p-3 rounded-xl">
+                        <div className="text-xs text-slate-500 mb-1">Surface Area</div>
+                        <div className="text-xl font-mono font-bold text-slate-700">{formatNum(currentArea)} <span className="text-xs text-slate-400">cm²</span></div>
+                        </div>
+                    </div>
+                    </div>
+                )}
+
+                </aside>
+
+                {/* Right 3D View */}
+                <main className="flex-1 relative bg-slate-50 cursor-move">
+                    <div ref={mountRef} className="w-full h-full" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} />
+                    <div className="absolute top-4 left-4 pointer-events-none">
+                        <div className="bg-white/80 backdrop-blur px-3 py-1.5 rounded-full text-xs font-bold text-slate-400 border border-slate-200 shadow-sm">
+                            🎯 Drag to rotate model to check proportions
+                        </div>
+                    </div>
+                </main>
+
             </div>
-          )}
-
-        </aside>
-
-        {/* Right 3D View */}
-        <main className="flex-1 relative bg-slate-50 cursor-move">
-            <div ref={mountRef} className="w-full h-full" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} />
-            <div className="absolute top-4 left-4 pointer-events-none">
-                 <div className="bg-white/80 backdrop-blur px-3 py-1.5 rounded-full text-xs font-bold text-slate-400 border border-slate-200 shadow-sm">
-                    🎯 Drag to rotate model to check proportions
-                 </div>
             </div>
-        </main>
+        );
+        };
 
-      </div>
-    </div>
-  );
-};
-
-export default GeometryLab;
+        const root = createRoot(document.getElementById('root'));
+        root.render(<GeometryLab />);
+    </script>
+</body>
+</html>
