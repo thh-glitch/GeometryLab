@@ -3,22 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>幾何獸編年史 v5.0 - 幾何起源</title>
+    <title>幾何獸編年史 v6.2 - 位置修正版</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #1a1a1a;
-            --console-body: #4a4a4a;
-            --screen-bg: #2d3e30; /* 深綠色 CRT 風格 */
-            --pixel-color: #98fb98; /* 螢光綠文字 */
-            --highlight: #00ff00;
-            --danger: #ff4444;
-            --accent: #55ffff;
+            --bg-color: #121212;
+            --console: #2a2a2a;
+            --screen: #1e3a29;
+            --text-main: #aaffaa;
+            --text-warn: #ff5555;
+            --accent: #00e5ff;
         }
 
         body {
             background-color: var(--bg-color);
-            color: var(--pixel-color);
+            color: var(--text-main);
             font-family: 'Press Start 2P', cursive;
             display: flex;
             justify-content: center;
@@ -29,215 +28,169 @@
             overflow: hidden;
         }
 
-        #game-console {
-            background: linear-gradient(180deg, #555 0%, #333 100%);
-            padding: 20px;
-            border-radius: 20px;
-            box-shadow: 0 15px 30px rgba(0,0,0,0.6);
-            border: 4px solid #111;
-            width: 400px;
+        #device {
+            background: linear-gradient(145deg, #333, #111);
+            padding: 25px;
+            border-radius: 30px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8), inset 0 2px 5px rgba(255,255,255,0.1);
+            border: 5px solid #000;
+            width: 460px;
             position: relative;
         }
 
-        #screen-border {
-            background: #111;
-            padding: 15px;
+        #screen-container {
+            background: #000;
+            padding: 10px;
             border-radius: 15px;
-            box-shadow: inset 0 0 10px #000;
+            box-shadow: inset 0 0 20px #000;
         }
 
         #screen {
-            background-color: var(--screen-bg);
+            background-color: var(--screen);
             width: 100%;
-            height: 450px;
+            height: 500px;
             position: relative;
-            border: 2px solid #555;
             overflow: hidden;
+            border: 2px solid #334433;
             image-rendering: pixelated;
         }
 
-        /* 復古掃描線 */
-        #screen::before {
-            content: "";
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
-            background-size: 100% 4px;
-            pointer-events: none;
-            z-index: 10;
+        /* 掃描線 */
+        #screen::after {
+            content: ""; position: absolute; top:0; left:0; width:100%; height:100%;
+            background: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.1) 50%);
+            background-size: 100% 4px; pointer-events: none; z-index: 99;
         }
 
-        /* UI 層 */
+        /* HUD */
         .hud {
-            position: absolute;
-            top: 10px; left: 10px; right: 10px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 10px;
-            z-index: 15;
+            position: absolute; top: 15px; left: 15px; right: 15px;
+            display: flex; justify-content: space-between;
+            font-size: 12px;
+            z-index: 10;
             text-shadow: 1px 1px 0 #000;
         }
-
-        /* 經驗條 */
-        .exp-bar-frame {
-            position: absolute;
-            top: 25px; left: 10px; right: 10px;
-            height: 6px;
-            background: #111;
-            border: 1px solid #555;
-            z-index: 15;
-        }
-        .exp-bar-fill {
-            height: 100%;
-            width: 0%;
-            background: var(--highlight);
-            transition: width 0.5s;
-            box-shadow: 0 0 5px var(--highlight);
+        .stage-badge {
+            background: var(--accent); color: #000; padding: 4px 8px; border-radius: 4px;
         }
 
-        canvas { position: absolute; top: 0; left: 0; z-index: 5; }
+        .progress-dots {
+            display: flex; gap: 6px; margin-top: 6px; justify-content: flex-end;
+        }
+        .dot { width: 10px; height: 10px; background: #335544; border: 2px solid #557766; }
+        .dot.active { background: #ffff00; box-shadow: 0 0 5px #ffff00; border-color: #ffff00; }
+        .dot.done { background: #00ff00; border-color: #00ff00;}
 
-        /* 底部操作區 */
-        #command-center {
-            position: absolute;
-            bottom: 0; left: 0; width: 100%;
-            height: 140px;
+        canvas { position: absolute; top: 0; left: 0; z-index: 1; }
+
+        /* 下方控制台 */
+        #controls {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            height: 160px; /* 這個高度遮擋了之前的繪圖 */
             background: rgba(0, 20, 0, 0.95);
-            border-top: 2px solid var(--pixel-color);
-            padding: 15px;
+            border-top: 4px solid var(--text-main);
+            padding: 20px;
             box-sizing: border-box;
             z-index: 20;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
+            display: flex; flex-direction: column; justify-content: space-between;
         }
 
-        #msg-box {
-            font-size: 10px;
-            line-height: 1.6;
-            color: #ccffcc;
-            min-height: 40px;
+        #msg { 
+            font-size: 13px; 
+            line-height: 1.7; 
+            color: #fff; 
+            height: 60px; 
+            overflow-y: auto; 
         }
 
-        .controls {
-            display: flex;
-            gap: 10px;
-            align-items: flex-end;
-            justify-content: space-between;
-        }
-
-        input {
-            background: #000;
-            border: 1px solid var(--pixel-color);
-            color: var(--highlight);
-            font-family: inherit;
-            padding: 8px;
-            width: 60px;
-            text-align: center;
-        }
-
-        button {
-            background: #222;
-            color: var(--pixel-color);
-            border: 1px solid var(--pixel-color);
-            padding: 8px 12px;
-            font-family: inherit;
-            font-size: 10px;
-            cursor: pointer;
-            text-transform: uppercase;
-        }
-        button:hover { background: #333; box-shadow: 0 0 5px var(--pixel-color); }
-        button:active { transform: translateY(2px); }
-
-        #hint-btn { color: #ffe600; border-color: #ffe600; }
-        #hint-btn:disabled { color: #555; border-color: #555; cursor: not-allowed; }
-
-        /* 進化選擇介面 (卡牌風格) */
-        #evo-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.92);
-            z-index: 50;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .cards-container {
-            display: flex;
-            gap: 15px;
-            margin-top: 20px;
-        }
-
-        .evo-card {
-            width: 90px;
-            height: 140px;
-            border: 2px solid #fff;
-            padding: 10px;
-            background: #222;
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            transition: 0.3s;
-        }
-        .evo-card:hover { transform: scale(1.1); box-shadow: 0 0 15px #fff; }
-
-        .card-red { border-color: #ff5555; color: #ffcccc; }
-        .card-red:hover { box-shadow: 0 0 15px #ff5555; }
+        .input-row { display: flex; justify-content: space-between; align-items: flex-end; }
         
-        .card-blue { border-color: #5555ff; color: #ccccff; }
-        .card-blue:hover { box-shadow: 0 0 15px #5555ff; }
+        input {
+            background: #000; border: 3px solid var(--text-main); color: var(--text-main);
+            font-family: inherit; padding: 12px; width: 90px; text-align: center; 
+            font-size: 16px;
+        }
+        
+        button {
+            background: #222; color: #fff; border: 3px solid #fff;
+            padding: 12px 18px; font-family: inherit; 
+            font-size: 12px; cursor: pointer;
+            text-transform: uppercase; box-shadow: 3px 3px 0 #000;
+        }
+        button:active { transform: translate(2px, 2px); box-shadow: none; }
 
-        .card-yellow { border-color: #ffff55; color: #ffffcc; }
-        .card-yellow:hover { box-shadow: 0 0 15px #ffff55; }
+        /* 覆蓋層 */
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.96);
+            z-index: 50;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; padding: 30px; box-sizing: border-box;
+        }
 
-        .card-title { font-size: 9px; margin-bottom: 5px; font-weight: bold; }
-        .card-desc { font-size: 7px; line-height: 1.4; color: #aaa; margin-top: auto; }
-        .card-icon { font-size: 20px; margin: 10px 0; }
+        .quiz-btn {
+            background: #333; border: 3px solid #555; color: #fff;
+            width: 100%; padding: 18px; margin: 12px 0; text-align: left;
+            font-size: 12px; line-height: 1.5; cursor: pointer; transition: 0.2s;
+        }
+        .quiz-btn:hover { background: #444; border-color: var(--accent); }
 
-        /* 震動動畫 */
-        .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
-        @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
+        .cards-row { display: flex; gap: 15px; margin-top: 25px; }
+        .evo-card {
+            width: 110px; height: 160px; border: 3px solid #fff; padding: 12px;
+            background: #222; cursor: pointer; display: flex; flex-direction: column;
+            align-items: center; transition: 0.3s;
+        }
+        .evo-card:hover { transform: scale(1.05); box-shadow: 0 0 20px var(--accent); }
+        .card-icon { font-size: 32px; margin: 15px 0; }
+        .card-title { font-size: 10px; color: var(--accent); margin-bottom: 8px; }
+        .card-desc { font-size: 8px; color: #aaa; line-height: 1.5; }
+
+        .shake { animation: shake 0.4s; }
+        @keyframes shake { 0% { transform: translate(1px, 1px); } 50% { transform: translate(-2px, 0); } 100% { transform: translate(0, 0); } }
     </style>
 </head>
 <body>
 
-<div id="game-console">
-    <div id="screen-border">
+<div id="device">
+    <div id="screen-container">
         <div id="screen">
             <div class="hud">
-                <span>LV.<span id="lvl-num">1</span></span>
-                <span id="monster-name">原生質幾何體</span>
-            </div>
-            <div class="exp-bar-frame"><div class="exp-bar-fill" id="exp-fill"></div></div>
-
-            <canvas id="game-canvas" width="370" height="450"></canvas>
-
-            <div id="evo-overlay">
-                <h3 style="color:#fff; text-shadow:0 0 10px #fff;">🧬 基因突變 🧬</h3>
-                <div class="cards-container" id="cards-box">
-                    </div>
-            </div>
-
-            <div id="command-center">
-                <div id="msg-box">系統連線中...</div>
-                
-                <div class="controls" id="input-area">
-                    <button id="hint-btn" onclick="useHint()">💡 提示(3)</button>
-                    <div style="display:flex; align-items:center; gap:5px;">
-                        <span>x=</span>
-                        <input type="number" id="answer-input" placeholder="?">
-                    </div>
-                    <button onclick="checkAnswer()" style="background:#004400; border-color:#00ff00;">注入</button>
+                <div>
+                    <span class="stage-badge" id="stage-badge">關卡 1</span>
+                    <div style="margin-top:8px; font-size:10px;" id="stage-name">邊之煉</div>
                 </div>
-                
-                <div class="controls" id="mc-area" style="display:none; justify-content:center;">
-                    <button class="mc-btn" onclick="checkMC(0)" id="btn-0" style="width:30%">A</button>
-                    <button class="mc-btn" onclick="checkMC(1)" id="btn-1" style="width:30%">B</button>
-                    <button class="mc-btn" onclick="checkMC(2)" id="btn-2" style="width:30%">C</button>
+                <div style="text-align:right;">
+                    <div id="monster-name" style="font-size:12px;">幾何幼體</div>
+                    <div class="progress-dots" id="dots-container">
+                        <div class="dot active"></div><div class="dot"></div><div class="dot"></div>
+                    </div>
+                </div>
+            </div>
+
+            <canvas id="canvas" width="440" height="500"></canvas>
+
+            <div id="quiz-overlay" class="overlay">
+                <h3 style="color:var(--accent); margin-bottom:25px; font-size:16px;">⚠️ 幾何同步測試 ⚠️</h3>
+                <p id="quiz-q" style="font-size:13px; margin-bottom:25px; line-height:1.8;">題目載入中...</p>
+                <div id="quiz-options" style="width:100%"></div>
+            </div>
+
+            <div id="evo-overlay" class="overlay">
+                <h3 style="color:#ffff00; font-size:18px;">🧬 基因突變 🧬</h3>
+                <p style="font-size:12px; margin-top:10px;">試煉通過！選擇進化方向：</p>
+                <div class="cards-row" id="evo-cards"></div>
+            </div>
+
+            <div id="controls">
+                <div id="msg">系統連線中...</div>
+                <div class="input-row" id="input-area">
+                    <button onclick="hint()" style="border-color:#ffff00; color:#ffff00; font-size:12px;">💡 提示</button>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:14px;">x=</span>
+                        <input type="number" id="ans-input" placeholder="?">
+                    </div>
+                    <button onclick="submitAns()" style="background:#004400; border-color:#00ff00; font-size:14px;">注入</button>
                 </div>
             </div>
         </div>
@@ -245,376 +198,353 @@
 </div>
 
 <script>
-    // --- 遊戲狀態 ---
-    const state = {
-        level: 1,
-        exp: 0,
-        maxExp: 3,
-        hints: 3,
-        question: null,
-        wrongCount: 0,
-        paused: false,
-        // 幾何獸基因庫
-        parts: {
-            color: '#98fb98', // 預設螢光綠
-            aura: 'none',     // 光環
-            horns: 'none',    // 角
-            wings: 'none',    // 翼
-            core: 'none'      // 胸口核心
-        },
-        name: "原生質幾何體"
+    const game = {
+        stage: 1,
+        questionIndex: 0,
+        totalPerStage: 3,
+        currentQ: null,
+        monster: { name: "幾何幼體", color: "#aaffaa", bodyType: 'basic', headType: 'basic', wingType: 'none' },
+        paused: false
     };
 
-    const canvas = document.getElementById('game-canvas');
+    const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     let tick = 0;
 
-    // --- 題庫邏輯 (S3 重點) ---
+    const stageInfo = {
+        1: { name: "邊之煉", prop: "對邊相等", color: "#00e5ff" },
+        2: { name: "角之煉", prop: "對角相等", color: "#ff5555" },
+        3: { name: "軸之煉", prop: "對角線平分", color: "#ffff00" }
+    };
+
     function generateProblem() {
-        state.wrongCount = 0;
-        toggleInput(true);
-        document.getElementById('answer-input').value = '';
-        document.getElementById('answer-input').focus();
+        game.paused = false;
+        document.getElementById('ans-input').value = '';
+        document.getElementById('ans-input').focus();
+        updateDots();
 
-        const lvl = state.level;
+        const x = Math.floor(Math.random() * 6) + 3;
         let q = {};
-        
-        // 隨機整數答案 x (避免分數，降低挫折感，專注幾何邏輯)
-        const x = Math.floor(Math.random() * 6) + 3; // 3 to 8
 
-        // 題型池
-        const types = [];
-        types.push('side_eq'); // 對邊相等 (Lv1+)
-        if (lvl >= 2) types.push('angle_adj'); // 同側內角互補 (Lv2+)
-        if (lvl >= 3) types.push('angle_opp'); // 對角相等 (Lv3+)
-        if (lvl >= 4) types.push('diag_bisect'); // 對角線平分 (Lv4+)
-
-        const type = types[Math.floor(Math.random() * types.length)];
-
-        if (type === 'side_eq') {
-            // S3: 兩邊都有 x 的方程式 (3x + 2 = x + 12)
-            const a = Math.floor(Math.random() * 2) + 2; // 2 or 3
-            const b = Math.floor(Math.random() * 5) + 1;
-            // 右邊式子: x + d. 
-            // ax + b = x + d  => (a-1)x + b = d
-            const d = (a - 1) * x + b;
-            
+        if (game.stage === 1) {
+            const a = Math.floor(Math.random()*2)+2;
+            const b = Math.floor(Math.random()*5)+1;
+            const d = (a-1)*x + b;
             q = {
-                type: 'side',
-                text: `偵測到邊長異常。<br>利用「對邊相等」性質求解。<br>${a}x + ${b} = x + ${d}`,
-                hint: "平行四邊形的對邊長度相等 (Top = Bottom)。",
-                ans: x,
+                type: 'side', ans: x,
+                text: `[試煉1-${game.questionIndex+1}] 邊長異常。<br>上邊=${a}x+${b}, 下邊=x+${d}`,
+                hint: "平行四邊形「對邊長度相等」。\n上邊 = 下邊，列出算式解 x。",
                 draw: { top: `${a}x+${b}`, bottom: `x+${d}` }
             };
-
-        } else if (type === 'angle_adj') {
-            // S3: 同側內角互補 (A + B = 180)
-            // (2x + 10) + (??) = 180
-            const a = 2; 
-            const b = Math.floor(Math.random() * 10) * 2; // 偶數
-            const angleA = a * x + b;
-            const angleB = 180 - angleA;
-            
-            // 讓 Angle B 顯示為數字，Angle A 顯示為式子
+        } else if (game.stage === 2) {
+            const a = Math.floor(Math.random()*2)+2; 
+            const offset = 10;
+            const val = a * x - offset;
             q = {
-                type: 'angle_adj',
-                text: `能量流互斥！同側內角不穩。<br>角A (${a}x+${b}) 與 角B (${angleB}°) 互補。`,
-                hint: "平行四邊形中，鄰角 (U字型/C字型) 相加等於 180 度。",
-                ans: x,
-                draw: { A: `${a}x+${b}`, B: `${angleB}°` }
+                type: 'angle', ans: x,
+                text: `[試煉2-${game.questionIndex+1}] 角度校準。<br>角A=${a}x-${offset}, 對角C=${val}°`,
+                hint: "平行四邊形「對角相等」。\n角 A = 角 C。",
+                draw: { A: `${a}x-${offset}`, C: `${val}°` }
             };
-
-        } else if (type === 'angle_opp') {
-            // 對角相等 (3x - 10 = 50)
-            const a = 3;
-            const b = 10;
-            const angleVal = a * x - b;
+        } else if (game.stage === 3) {
+            const val = x + 5;
             q = {
-                type: 'angle_opp',
-                text: `核心共振。利用「對角相等」求解。<br>${a}x - ${b} = ${angleVal}°`,
-                hint: "平行四邊形的對角 (Opposite Angles) 數值是相等的。",
-                ans: x,
-                draw: { A: `${a}x-${b}`, C: `${angleVal}°` }
+                type: 'diag', ans: x,
+                text: `[試煉3-${game.questionIndex+1}] 軸線偏移。<br>半軸長=${val}, 另一半=2x+${5-x}`,
+                hint: "平行四邊形「對角線互相平分」。\n切開的兩段長度一樣。",
+                draw: { d1: `${val}`, d2: `2x+${5-x}` }
             };
-        } else if (type === 'diag_bisect') {
-             // 對角線平分
-             const len = x + 5;
-             q = {
-                 type: 'diag',
-                 text: `對角線交點偏移。<br>一半長度為 ${len}，另一半為 x+5`,
-                 hint: "平行四邊形的對角線會互相平分 (切一半)。",
-                 ans: x,
-                 draw: { d1: `${len}`, d2: `x+5` }
-             };
         }
 
-        state.question = q;
+        game.currentQ = q;
         uiMsg(q.text);
     }
 
-    // --- 繪圖系統 ---
+    function triggerBossQuiz() {
+        game.paused = true;
+        const overlay = document.getElementById('quiz-overlay');
+        const qText = document.getElementById('quiz-q');
+        const optsDiv = document.getElementById('quiz-options');
+        optsDiv.innerHTML = '';
+        overlay.style.display = 'flex';
+
+        let quizData = {};
+        if (game.stage === 1) {
+            quizData = {
+                q: "【邊之試煉總結】<br>關於平行四邊形的「邊」，下列敘述何者正確？",
+                opts: [ { txt: "鄰邊長度一定相等 (AB=BC)", correct: false }, { txt: "對邊長度一定相等 (AB=CD)", correct: true }, { txt: "四條邊長度都必須一樣", correct: false } ]
+            };
+        } else if (game.stage === 2) {
+            quizData = {
+                q: "【角之試煉總結】<br>關於平行四邊形的「角」，下列敘述何者正確？",
+                opts: [ { txt: "對角相等 (∠A = ∠C)", correct: true }, { txt: "對角互補 (∠A + ∠C = 180°)", correct: false }, { txt: "四個角都是 90°", correct: false } ]
+            };
+        } else {
+            quizData = {
+                q: "【軸之試煉總結】<br>關於平行四邊形的「對角線」，下列敘述何者正確？",
+                opts: [ { txt: "對角線長度一定相等", correct: false }, { txt: "對角線會互相垂直", correct: false }, { txt: "對角線會互相平分", correct: true } ]
+            };
+        }
+
+        qText.innerHTML = quizData.q;
+        quizData.opts.sort(() => Math.random() - 0.5);
+
+        quizData.opts.forEach(opt => {
+            const btn = document.createElement('button');
+            btn.className = 'quiz-btn';
+            btn.innerText = opt.txt;
+            btn.onclick = () => {
+                if (opt.correct) {
+                    alert("觀念正確！基因鎖解開！");
+                    overlay.style.display = 'none';
+                    triggerEvolution();
+                } else {
+                    alert("觀念錯誤！受到反噬傷害！(請再試一次)");
+                }
+            };
+            optsDiv.appendChild(btn);
+        });
+    }
+
+    function triggerEvolution() {
+        const overlay = document.getElementById('evo-overlay');
+        const cardsDiv = document.getElementById('evo-cards');
+        cardsDiv.innerHTML = '';
+        overlay.style.display = 'flex';
+
+        let choices = [];
+        if (game.stage === 1) {
+            choices = [
+                { name: "熔岩核心", icon: "🔥", type: "magma", desc: "身體流動著高熱熔岩。<br>攻擊特化。" },
+                { name: "鈦金裝甲", icon: "⚙️", type: "mech", desc: "堅不可摧的機械外殼。<br>防禦特化。" },
+                { name: "虛空水晶", icon: "💎", type: "crystal", desc: "神秘的幾何結晶體。<br>魔力特化。" }
+            ];
+        } else if (game.stage === 2) {
+            choices = [
+                { name: "巨龍之角", icon: "🐉", type: "dragon", desc: "遠古生物的威嚴。" },
+                { name: "雷達陣列", icon: "📡", type: "radar", desc: "精準鎖定目標。" },
+                { name: "神聖光環", icon: "😇", type: "holy", desc: "幾何之神的加護。" }
+            ];
+        } else {
+            choices = [
+                { name: "惡魔之翼", icon: "🦇", type: "demon", desc: "撕裂空間的雙翼。" },
+                { name: "噴射推進", icon: "🚀", type: "jet", desc: "超音速機動性。" },
+                { name: "六翼天使", icon: "✨", type: "angel", desc: "超越維度的存在。" }
+            ];
+        }
+
+        choices.forEach(c => {
+            const card = document.createElement('div');
+            card.className = 'evo-card';
+            card.innerHTML = `
+                <div class="card-title">${c.name}</div>
+                <div class="card-icon">${c.icon}</div>
+                <div class="card-desc">${c.desc}</div>
+            `;
+            card.onclick = () => {
+                applyEvolution(c.type);
+                overlay.style.display = 'none';
+                nextStage();
+            };
+            cardsDiv.appendChild(card);
+        });
+    }
+
+    function applyEvolution(type) {
+        if (game.stage === 1) game.monster.bodyType = type;
+        if (game.stage === 2) game.monster.headType = type;
+        if (game.stage === 3) game.monster.wingType = type;
+        
+        const prefixes = { magma: "熔岩", mech: "鋼鐵", crystal: "結晶", dragon: "龍角", radar: "機動", holy: "神聖" };
+        const suffix = { demon: "魔王", jet: "戰機", angel: "天使" };
+        
+        let newName = "";
+        if(game.stage === 1) newName = prefixes[type] + "幾何體";
+        if(game.stage === 2) newName = prefixes[game.monster.headType] + prefixes[game.monster.bodyType] + "獸";
+        if(game.stage === 3) newName = "究極" + prefixes[game.monster.bodyType] + suffix[type];
+        
+        game.monster.name = newName;
+        document.getElementById('monster-name').innerText = newName;
+    }
+
+    function nextStage() {
+        if (game.stage < 3) {
+            game.stage++;
+            game.questionIndex = 0;
+            const info = stageInfo[game.stage];
+            document.getElementById('stage-badge').innerText = `關卡 ${game.stage}`;
+            document.getElementById('stage-badge').style.background = info.color;
+            document.getElementById('stage-name').innerText = info.name;
+            uiMsg(`進入下一層：${info.name}！`);
+            setTimeout(generateProblem, 2000);
+        } else {
+            alert("恭喜！你已完全掌握平行四邊形的所有奧義！");
+            uiMsg("全關卡制霸！幾何大師誕生。");
+        }
+    }
+
+    function submitAns() {
+        const val = parseInt(document.getElementById('ans-input').value);
+        if (isNaN(val)) return;
+        if (val === game.currentQ.ans) {
+            game.questionIndex++;
+            uiMsg("計算正確！能量注入。");
+            if (game.questionIndex >= game.totalPerStage) {
+                setTimeout(triggerBossQuiz, 1000);
+            } else {
+                setTimeout(generateProblem, 1000);
+            }
+        } else {
+            uiMsg("錯誤！請檢查算式。");
+            const sc = document.getElementById('screen');
+            sc.classList.remove('shake');
+            void sc.offsetWidth; sc.classList.add('shake');
+        }
+    }
+
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
         tick += 0.05;
-        const floatY = Math.sin(tick) * 5;
-        const cx = 185;
-        const cy = 200 + floatY;
+        const floatY = Math.sin(tick) * 6;
         
-        // 根據屬性改變繪圖風格
-        // 這裡簡化處理，透過 state.parts 決定
-        
-        // 1. 畫光環/翅膀 (背景層)
-        if (state.parts.wings === 'angel') drawWings(cx, cy, 'angel');
-        if (state.parts.wings === 'demon') drawWings(cx, cy, 'demon');
-        if (state.parts.aura === 'tech') drawAura(cx, cy, '#55ffff');
-        if (state.parts.aura === 'fire') drawAura(cx, cy, '#ff5555');
+        // --- 修正核心 ---
+        // 將中心點從 250 上移到 210，避免被下方 160px 的控制區遮擋
+        // 控制區頂部位置約為 y=340
+        // 怪獸底部位置約為 210 + 70(h) = 280
+        // 文字位置約為 280 + 30 = 310 < 340 (安全)
+        const cx = 220, cy = 210 + floatY; 
 
-        // 2. 畫主體 (平行四邊形)
-        let skew = 40;
-        // 如果答錯多次，圖形會扭曲
-        if (state.wrongCount > 0 && !state.paused) skew = 10 + Math.sin(tick*10)*5;
+        drawWings(cx, cy);
+        drawBody(cx, cy);
+        drawHead(cx, cy);
+        drawOverlay();
+        requestAnimationFrame(draw);
+    }
 
-        const w = 80; const h = 50;
+    function drawBody(cx, cy) {
+        const type = game.monster.bodyType;
+        let color = '#aaffaa';
+        if (type === 'magma') color = '#ff5500';
+        if (type === 'mech') color = '#aaaaff';
+        if (type === 'crystal') color = '#ff00ff';
+
+        ctx.fillStyle = color;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 4;
+
+        const w = 100, h = 70, skew = 35;
         const p1 = {x:cx-w+skew, y:cy-h};
         const p2 = {x:cx+w+skew, y:cy-h};
         const p3 = {x:cx+w-skew, y:cy+h};
         const p4 = {x:cx-w-skew, y:cy+h};
-
-        ctx.lineWidth = 3;
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = state.parts.color;
-        ctx.fillStyle = hexToRgba(state.parts.color, 0.2);
+        game.coords = {p1, p2, p3, p4};
 
         ctx.beginPath();
         ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
         ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y);
         ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // 3. 畫角/核心 (前景層)
-        if (state.parts.horns === 'sharp') drawHorns(cx, cy, 'sharp');
-        if (state.parts.horns === 'bull') drawHorns(cx, cy, 'bull');
-        if (state.parts.core === 'reactor') drawCore(cx, cy);
-
-        // 4. 畫題目標示 (UI Overlay)
-        drawQuestionOverlay(p1, p2, p3, p4);
-
-        if (!state.paused) requestAnimationFrame(draw);
+        
+        if (type === 'basic') {
+            ctx.globalAlpha = 0.3; ctx.fill(); ctx.globalAlpha = 1; ctx.stroke();
+        } else if (type === 'magma') {
+            ctx.globalAlpha = 0.8; ctx.fill(); 
+            ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(cx, cy); ctx.lineTo(p3.x, p3.y); ctx.stroke();
+        } else if (type === 'mech') {
+            ctx.fillStyle = '#333'; ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#0ff';
+            ctx.fillRect(cx-15, cy-15, 30, 30);
+            ctx.beginPath(); ctx.moveTo(cx-w, cy); ctx.lineTo(cx+w, cy); ctx.stroke();
+        } else if (type === 'crystal') {
+            ctx.fillStyle = 'rgba(255, 0, 255, 0.5)'; ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(cx, cy-h); ctx.lineTo(cx+w/2, cy); ctx.lineTo(cx, cy+h); ctx.lineTo(cx-w/2, cy); ctx.closePath(); ctx.stroke();
+        }
     }
 
-    function drawQuestionOverlay(p1, p2, p3, p4) {
-        if (!state.question) return;
-        const q = state.question;
+    function drawHead(cx, cy) {
+        const type = game.monster.headType;
+        const yTop = cy - 70; 
         ctx.fillStyle = '#fff';
-        ctx.font = '10px "Press Start 2P"';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        if (type === 'dragon') {
+            ctx.fillStyle = '#dddddd';
+            ctx.beginPath(); ctx.moveTo(cx-35, yTop); ctx.lineTo(cx-70, yTop-70); ctx.lineTo(cx-25, yTop-25); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(cx+35, yTop); ctx.lineTo(cx+70, yTop-70); ctx.lineTo(cx+25, yTop-25); ctx.fill();
+        } else if (type === 'radar') {
+            ctx.strokeStyle = '#0f0'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(cx, yTop); ctx.lineTo(cx, yTop-60); ctx.stroke();
+            if (Math.floor(tick*5)%2===0) { ctx.fillStyle='#f00'; ctx.beginPath(); ctx.arc(cx, yTop-60, 6, 0, Math.PI*2); ctx.fill(); }
+        } else if (type === 'holy') {
+            ctx.strokeStyle = '#ffcc00'; ctx.lineWidth=4;
+            ctx.beginPath(); ctx.ellipse(cx, yTop-50, 50, 12, 0, 0, Math.PI*2); ctx.stroke();
+        }
+        ctx.fillStyle = '#000'; ctx.fillRect(cx-25, cy-12, 12, 12); ctx.fillRect(cx+13, cy-12, 12, 12);
+        ctx.fillStyle = '#fff'; ctx.fillRect(cx-22, cy-10, 5, 5); ctx.fillRect(cx+16, cy-10, 5, 5);
+    }
+
+    function drawWings(cx, cy) {
+        const type = game.monster.wingType;
+        if (type === 'none') return;
+        ctx.save(); ctx.translate(cx, cy);
+        if (type === 'demon') {
+            ctx.fillStyle = '#550000';
+            ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-140, -90); ctx.lineTo(-90, 30); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(140, -90); ctx.lineTo(90, 30); ctx.fill();
+        } else if (type === 'jet') {
+            ctx.fillStyle = '#888'; ctx.fillRect(-110, -25, 50, 70); ctx.fillRect(60, -25, 50, 70);
+            ctx.fillStyle = '#f00';
+            ctx.beginPath(); ctx.moveTo(-85, 45); ctx.lineTo(-100, 90+Math.random()*25); ctx.lineTo(-70, 90+Math.random()*25); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(85, 45); ctx.lineTo(70, 90+Math.random()*25); ctx.lineTo(100, 90+Math.random()*25); ctx.fill();
+        } else if (type === 'angel') {
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            ctx.beginPath(); ctx.ellipse(-90, -25, 70, 35, -0.5, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(90, -25, 70, 35, 0.5, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    function drawOverlay() {
+        if (!game.currentQ || !game.coords) return;
+        const q = game.currentQ;
+        const {p1, p2, p3, p4} = game.coords;
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px "Press Start 2P"';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
         if (q.type === 'side') {
-            // 高亮上下邊
-            ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 2;
+            ctx.strokeStyle = '#ff0'; ctx.lineWidth=4;
             ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); ctx.stroke();
-            
-            ctx.fillText(q.draw.top, (p1.x+p2.x)/2, p1.y - 15);
-            ctx.fillText(q.draw.bottom, (p3.x+p4.x)/2, p3.y + 15);
-        } else if (q.type === 'angle_adj') {
-            // 畫鄰角 A(左上) B(左下)
-            drawAngle(p1, 0, 1, q.draw.A, '#ff5555');
-            drawAngle(p4, -1, 0, q.draw.B, '#5555ff');
-            // 畫個 C 字型連結提示
-            ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.setLineDash([5,5]);
-            ctx.beginPath(); ctx.moveTo(p1.x-10, p1.y+10); ctx.quadraticCurveTo(p1.x-30, (p1.y+p4.y)/2, p4.x-10, p4.y-10); ctx.stroke();
-            ctx.setLineDash([]);
-        } else if (q.type === 'angle_opp') {
-            // 畫對角
-            drawAngle(p1, 0, 1, q.draw.A, '#ff5555');
-            drawAngle(p3, -1, 0, q.draw.C, '#ff5555');
+            ctx.fillText(q.draw.top, (p1.x+p2.x)/2, p1.y-25);
+            ctx.fillText(q.draw.bottom, (p3.x+p4.x)/2, p3.y+35);
+        } else if (q.type === 'angle') {
+            ctx.strokeStyle = '#f00'; ctx.lineWidth=3;
+            ctx.beginPath(); ctx.arc(p1.x, p1.y, 30, 0, Math.PI*2); ctx.stroke();
+            ctx.beginPath(); ctx.arc(p3.x, p3.y, 30, 0, Math.PI*2); ctx.stroke();
+            ctx.fillText(q.draw.A, p1.x-45, p1.y);
+            ctx.fillText(q.draw.C, p3.x+45, p3.y);
         } else if (q.type === 'diag') {
-            ctx.strokeStyle = '#aaa';
+            ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth=2;
             ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p3.x, p3.y); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(p2.x, p2.y); ctx.lineTo(p4.x, p4.y); ctx.stroke();
             ctx.fillStyle = '#0f0';
-            ctx.fillText(q.draw.d1, 185, 180);
-            ctx.fillText(q.draw.d2, 185, 220);
+            ctx.fillText(q.draw.d1, 220, 200); // 往上微調
+            ctx.fillText(q.draw.d2, 220, 290); // 往上微調
         }
     }
 
-    function drawAngle(p, startMult, endMult, text, color) {
-        ctx.strokeStyle = color;
-        ctx.beginPath(); ctx.arc(p.x, p.y, 25, 0, Math.PI*2); ctx.stroke(); // 簡化畫圈
-        ctx.fillStyle = color;
-        // 文字避讓邏輯
-        const offsetX = (p.x < 185) ? -40 : 40;
-        ctx.fillText(text, p.x + offsetX, p.y);
-    }
-
-    // 簡單的幾何繪圖輔助
-    function drawWings(x, y, type) {
-        ctx.strokeStyle = (type==='angel') ? '#fff' : '#f00';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        // 簡單示意
-        ctx.moveTo(x, y); ctx.lineTo(x-80, y-50); ctx.lineTo(x-60, y+20); ctx.stroke();
-        ctx.moveTo(x, y); ctx.lineTo(x+80, y-50); ctx.lineTo(x+60, y+20); ctx.stroke();
-    }
-    function drawHorns(x, y, type) {
-        ctx.fillStyle = (type==='sharp') ? '#ff0000' : '#888';
-        ctx.beginPath(); ctx.moveTo(x-20, y-40); ctx.lineTo(x-30, y-80); ctx.lineTo(x-10, y-50); ctx.fill();
-        ctx.beginPath(); ctx.moveTo(x+20, y-40); ctx.lineTo(x+30, y-80); ctx.lineTo(x+10, y-50); ctx.fill();
-    }
-    function drawCore(x, y) {
-        ctx.fillStyle = '#00ffff';
-        ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI*2); ctx.fill();
-        ctx.shadowBlur = 10; ctx.shadowColor = '#00ffff'; ctx.stroke();
-        ctx.shadowBlur = 0;
-    }
-    function drawAura(x, y, col) {
-        ctx.strokeStyle = col;
-        ctx.globalAlpha = 0.3;
-        ctx.beginPath(); ctx.arc(x, y, 90 + Math.sin(tick)*10, 0, Math.PI*2); ctx.stroke();
-        ctx.globalAlpha = 1.0;
-    }
-
-    // --- 互動與邏輯 ---
-
-    function checkAnswer() {
-        const input = document.getElementById('answer-input');
-        const val = parseInt(input.value);
-        if (isNaN(val)) return;
-
-        if (val === state.question.ans) {
-            // Correct
-            state.exp++;
-            updateBar();
-            uiMsg("同步率上升！幾何結構穩定。");
-            if (state.exp >= state.maxExp) {
-                setTimeout(startEvolution, 1000);
-            } else {
-                setTimeout(generateProblem, 1500);
-            }
-        } else {
-            // Wrong
-            state.wrongCount++;
-            handleWrong();
-        }
-    }
-
-    function checkMC(idx) {
-        // 選擇題邏輯... (此處簡化，實際應驗證答案)
-        // 假設第一個按鈕總是正確答案的簡單演示，或需配合 generateMC
-        // 這裡為了演示流暢，若按下選擇題，重置問題
-        uiMsg("系統強制校正中...");
-        setTimeout(generateProblem, 1000);
-    }
-
-    function handleWrong() {
-        const screen = document.getElementById('screen');
-        screen.classList.remove('shake');
-        void screen.offsetWidth; 
-        screen.classList.add('shake');
-        
-        if (state.wrongCount >= 2) {
-            uiMsg("錯誤過多！啟動三選一輔助模式。");
-            toggleInput(false);
-            // 簡單生成選項
-            const ans = state.question.ans;
-            const opts = [ans, ans+2, ans-1].sort(()=>Math.random()-0.5);
-            opts.forEach((v, i) => {
-                document.getElementById('btn-'+i).innerText = v;
-                document.getElementById('btn-'+i).onclick = function() {
-                     if(v===ans) { state.exp++; updateBar(); uiMsg("校正成功！"); setTimeout(generateProblem, 1500); }
-                     else { alert("無效數據！"); }
-                };
-            });
-        } else {
-            uiMsg("計算錯誤！請檢查性質 (Hint available).");
-        }
-    }
-
-    // --- 進化系統 (核心亮點) ---
-    
-    const evoPool = {
-        2: [ // Lv2 Choices
-            { title:"赤紅之角", desc:"長出銳利的角。<br>攻擊型態。", style:'card-red', icon:'😈', apply:()=>{state.parts.horns='sharp'; state.parts.color='#ffaaaa'; state.name="狂暴三角獸";} },
-            { title:"鋼鐵裝甲", desc:"增加防禦厚度。<br>防禦型態。", style:'card-blue', icon:'🛡️', apply:()=>{state.parts.horns='bull'; state.parts.color='#aaaaff'; state.name="重裝四邊獸";} },
-            { title:"光子核心", desc:"胸口聚變反應。<br>能量型態。", style:'card-yellow', icon:'⚛️', apply:()=>{state.parts.core='reactor'; state.parts.color='#ffffaa'; state.name="光能核心獸";} }
-        ],
-        3: [ // Lv3 Choices
-            { title:"惡魔之翼", desc:"獲得飛行能力。<br>速度提升。", style:'card-red', icon:'🦇', apply:()=>{state.parts.wings='demon';} },
-            { title:"天使之羽", desc:"神聖幾何加護。<br>幸運提升。", style:'card-blue', icon:'🪽', apply:()=>{state.parts.wings='angel';} },
-            { title:"虛空光環", desc:"干涉周圍磁場。<br>控制提升。", style:'card-yellow', icon:'⭕', apply:()=>{state.parts.aura='tech';} }
-        ]
-    };
-
-    function startEvolution() {
-        state.paused = true;
-        const choices = evoPool[state.level + 1] || evoPool[2]; // 預設用 Lv2 的做演示
-        
-        const container = document.getElementById('cards-box');
-        container.innerHTML = '';
-        
-        choices.forEach(c => {
-            const card = document.createElement('div');
-            card.className = `evo-card ${c.style}`;
-            card.innerHTML = `
-                <div class="card-title">${c.title}</div>
-                <div class="card-icon">${c.icon}</div>
-                <div class="card-desc">${c.desc}</div>
-            `;
-            card.onclick = () => {
-                c.apply();
-                endEvolution();
-            };
-            container.appendChild(card);
+    function updateDots() {
+        const dots = document.querySelectorAll('.dot');
+        dots.forEach((d, i) => {
+            d.className = 'dot';
+            if (i < game.questionIndex) d.classList.add('done');
+            if (i === game.questionIndex) d.classList.add('active');
         });
-
-        document.getElementById('evo-overlay').style.display = 'flex';
     }
 
-    function endEvolution() {
-        state.level++;
-        state.exp = 0;
-        state.maxExp += 2;
-        updateBar();
-        document.getElementById('lvl-num').innerText = state.level;
-        document.getElementById('monster-name').innerText = state.name;
-        document.getElementById('evo-overlay').style.display = 'none';
-        state.paused = false;
-        
-        uiMsg(`進化完成！<br>個體名：${state.name}`);
-        draw(); // Force redraw
-        setTimeout(generateProblem, 2000);
-    }
+    function uiMsg(txt) { document.getElementById('msg').innerHTML = txt; }
+    function hint() { if(game.currentQ) alert(game.currentQ.hint); }
 
-    // --- Utils ---
-    function updateBar() {
-        const pct = (state.exp / state.maxExp) * 100;
-        document.getElementById('exp-fill').style.width = pct + "%";
-    }
-    function uiMsg(txt) { document.getElementById('msg-box').innerHTML = txt; }
-    function toggleInput(isInput) {
-        document.getElementById('input-area').style.display = isInput ? 'flex' : 'none';
-        document.getElementById('mc-area').style.display = isInput ? 'none' : 'flex';
-    }
-    function hexToRgba(hex, alpha) {
-        // 簡單轉換，實際專案可用更嚴謹的 regex
-        return hex; // Canvas fillStyle support hex usually, just returning hex for now or adapt if needed
-    }
-    function useHint() {
-        if(state.hints > 0 && state.question) {
-            state.hints--;
-            document.getElementById('hint-btn').innerText = `💡 提示(${state.hints})`;
-            alert(state.question.hint);
-        }
-    }
-
-    // Start
     generateProblem();
     draw();
-
 </script>
 </body>
 </html>
