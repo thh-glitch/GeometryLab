@@ -1,747 +1,620 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-HK">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geometry Designer Deluxe</title>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Import Map -->
-    <script type="importmap">
-    {
-        "imports": {
-            "react": "https://esm.sh/react@18.2.0",
-            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-            "three": "https://esm.sh/three@0.160.0",
-            "lucide-react": "https://esm.sh/lucide-react@0.300.0?deps=react@18.2.0",
-            "canvas-confetti": "https://esm.sh/canvas-confetti@1.6.0",
-            "recharts": "https://esm.sh/recharts@2.10.3?deps=react@18.2.0"
-        }
-    }
-    </script>
-    
-    <!-- Babel -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
+    <title>幾何獸編年史 v5.0 - 幾何起源</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; overflow: hidden; background-color: #f8fafc; font-family: 'Inter', sans-serif; }
-        
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.8);
-            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
+        :root {
+            --bg-color: #1a1a1a;
+            --console-body: #4a4a4a;
+            --screen-bg: #2d3e30; /* 深綠色 CRT 風格 */
+            --pixel-color: #98fb98; /* 螢光綠文字 */
+            --highlight: #00ff00;
+            --danger: #ff4444;
+            --accent: #55ffff;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        body {
+            background-color: var(--bg-color);
+            color: var(--pixel-color);
+            font-family: 'Press Start 2P', cursive;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            user-select: none;
+            overflow: hidden;
         }
-        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-        
-        @keyframes pulse-subtle {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-            100% { transform: scale(1); }
-        }
-        .animate-pulse-subtle { animation: pulse-subtle 2s infinite ease-in-out; }
 
-        input[type=range] {
-            -webkit-appearance: none;
-            background: transparent;
+        #game-console {
+            background: linear-gradient(180deg, #555 0%, #333 100%);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.6);
+            border: 4px solid #111;
+            width: 400px;
+            position: relative;
         }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 24px; width: 24px;
-            border-radius: 50%;
-            background: #4f46e5;
-            margin-top: -10px;
-            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.4);
+
+        #screen-border {
+            background: #111;
+            padding: 15px;
+            border-radius: 15px;
+            box-shadow: inset 0 0 10px #000;
+        }
+
+        #screen {
+            background-color: var(--screen-bg);
+            width: 100%;
+            height: 450px;
+            position: relative;
+            border: 2px solid #555;
+            overflow: hidden;
+            image-rendering: pixelated;
+        }
+
+        /* 復古掃描線 */
+        #screen::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* UI 層 */
+        .hud {
+            position: absolute;
+            top: 10px; left: 10px; right: 10px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            z-index: 15;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        /* 經驗條 */
+        .exp-bar-frame {
+            position: absolute;
+            top: 25px; left: 10px; right: 10px;
+            height: 6px;
+            background: #111;
+            border: 1px solid #555;
+            z-index: 15;
+        }
+        .exp-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--highlight);
+            transition: width 0.5s;
+            box-shadow: 0 0 5px var(--highlight);
+        }
+
+        canvas { position: absolute; top: 0; left: 0; z-index: 5; }
+
+        /* 底部操作區 */
+        #command-center {
+            position: absolute;
+            bottom: 0; left: 0; width: 100%;
+            height: 140px;
+            background: rgba(0, 20, 0, 0.95);
+            border-top: 2px solid var(--pixel-color);
+            padding: 15px;
+            box-sizing: border-box;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        #msg-box {
+            font-size: 10px;
+            line-height: 1.6;
+            color: #ccffcc;
+            min-height: 40px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            justify-content: space-between;
+        }
+
+        input {
+            background: #000;
+            border: 1px solid var(--pixel-color);
+            color: var(--highlight);
+            font-family: inherit;
+            padding: 8px;
+            width: 60px;
+            text-align: center;
+        }
+
+        button {
+            background: #222;
+            color: var(--pixel-color);
+            border: 1px solid var(--pixel-color);
+            padding: 8px 12px;
+            font-family: inherit;
+            font-size: 10px;
             cursor: pointer;
-            transition: transform 0.1s;
-            border: 2px solid white;
+            text-transform: uppercase;
         }
-        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.1); }
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%; height: 6px;
-            background: #e2e8f0; border-radius: 3px;
+        button:hover { background: #333; box-shadow: 0 0 5px var(--pixel-color); }
+        button:active { transform: translateY(2px); }
+
+        #hint-btn { color: #ffe600; border-color: #ffe600; }
+        #hint-btn:disabled { color: #555; border-color: #555; cursor: not-allowed; }
+
+        /* 進化選擇介面 (卡牌風格) */
+        #evo-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.92);
+            z-index: 50;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
+
+        .cards-container {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .evo-card {
+            width: 90px;
+            height: 140px;
+            border: 2px solid #fff;
+            padding: 10px;
+            background: #222;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            transition: 0.3s;
+        }
+        .evo-card:hover { transform: scale(1.1); box-shadow: 0 0 15px #fff; }
+
+        .card-red { border-color: #ff5555; color: #ffcccc; }
+        .card-red:hover { box-shadow: 0 0 15px #ff5555; }
         
-        /* Chart Tooltip Customization */
-        .recharts-tooltip-wrapper {
-            z-index: 1000;
-        }
+        .card-blue { border-color: #5555ff; color: #ccccff; }
+        .card-blue:hover { box-shadow: 0 0 15px #5555ff; }
+
+        .card-yellow { border-color: #ffff55; color: #ffffcc; }
+        .card-yellow:hover { box-shadow: 0 0 15px #ffff55; }
+
+        .card-title { font-size: 9px; margin-bottom: 5px; font-weight: bold; }
+        .card-desc { font-size: 7px; line-height: 1.4; color: #aaa; margin-top: auto; }
+        .card-icon { font-size: 20px; margin: 10px 0; }
+
+        /* 震動動畫 */
+        .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
     </style>
-    
-    <!-- Error Suppression Script -->
-    <script>
-        const _ResizeObserver = window.ResizeObserver;
-        window.ResizeObserver = class ResizeObserver extends _ResizeObserver {
-            constructor(callback) {
-                callback = (origCallback => (entries, observer) => {
-                    window.requestAnimationFrame(() => {
-                        origCallback(entries, observer);
-                    });
-                })(callback);
-                super(callback);
-            }
-        };
-    </script>
 </head>
 <body>
-    <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
-        import React, { useState, useEffect, useRef, useMemo } from 'react';
-        import { createRoot } from 'react-dom/client';
-        import * as THREE from 'three';
-        import { Box, Cylinder, Cone, Trophy, AlertCircle, RotateCcw, Ruler, DollarSign, Leaf, Package, Calculator, Sparkles, Zap, CheckCircle2, XCircle, ArrowRight, TrendingUp, Smartphone, Grid3X3, Coins, Pencil, Share2, Check, ClipboardCopy } from 'lucide-react';
-        import confetti from 'canvas-confetti';
-        import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceDot } from 'recharts';
-
-        const formatNum = (num) => parseFloat(num.toFixed(1));
-
-        // --- Shape Database ---
-        const SHAPES = {
-            cylinder: {
-                id: 'cylinder',
-                name: 'Cylinder',
-                realName: 'Soda Can',
-                icon: <Cylinder size={24} />,
-                limits: { radius: [1.5, 6], height: [2, 12] },
-                formulas: { volume: (p) => Math.PI * Math.pow(p.radius, 2) * p.height, area: (p) => 2 * Math.PI * p.radius * p.height + 2 * Math.PI * Math.pow(p.radius, 2), tex: 'V = πr²h' },
-                matProps: { metalness: 0.6, roughness: 0.3, clearcoat: 0.8, color: 0xef4444 }
-            },
-            cone: {
-                id: 'cone',
-                name: 'Cone',
-                realName: 'Premium Cone',
-                icon: <div className="rotate-180"><Cone size={24} /></div>, 
-                limits: { radius: [2, 7], height: [3, 14] },
-                formulas: { volume: (p) => (1/3) * Math.PI * Math.pow(p.radius, 2) * p.height, area: (p) => Math.PI * p.radius * (p.radius + Math.sqrt(p.radius**2 + p.height**2)), tex: 'V = ⅓πr²h' },
-                matProps: { metalness: 0.1, roughness: 0.6, clearcoat: 0, color: 0xf59e0b }
-            },
-            cube: {
-                id: 'cube',
-                name: 'Cuboid',
-                realName: 'Shipping Box',
-                icon: <Box size={24} />,
-                limits: { width: [2, 8], height: [2, 8], depth: [2, 8] },
-                formulas: { volume: (p) => p.width * p.height * p.depth, area: (p) => 2 * (p.width * p.depth + p.height * p.depth + p.width * p.height), tex: 'V = lwh' },
-                matProps: { metalness: 0.0, roughness: 0.9, clearcoat: 0, color: 0x854d0e }
-            }
-        };
-
-        // --- Chart Component for Explore Mode ---
-        const OptimizationChart = ({ shapeId, currentParams, currentArea }) => {
-            const data = useMemo(() => {
-                if (shapeId !== 'cylinder') return [];
-                const fixedVol = Math.PI * Math.pow(currentParams.radius, 2) * currentParams.height;
-                const points = [];
-                for (let r = 1.5; r <= 6; r += 0.2) {
-                    const h = fixedVol / (Math.PI * r * r);
-                    if (h > 15 || h < 1) continue;
-                    const a = 2 * Math.PI * r * h + 2 * Math.PI * r * r;
-                    points.push({ r: parseFloat(r.toFixed(1)), area: Math.round(a) });
-                }
-                return points;
-            }, [shapeId, currentParams.radius, currentParams.height]);
-
-            if (shapeId !== 'cylinder') return (
-                <div className="h-32 flex items-center justify-center text-slate-400 text-xs bg-slate-50 rounded-xl border border-slate-200 mt-4">
-                    Optimization graph available for Cylinder
-                </div>
-            );
-
-            return (
-                <div className="h-48 w-full mt-4 bg-white rounded-xl p-2 border border-slate-200 shadow-sm">
-                    <div className="text-[10px] font-bold text-indigo-500 mb-2 uppercase tracking-wider flex items-center gap-1">
-                        <TrendingUp size={12}/> Surface Area vs Radius (Fixed Vol)
-                    </div>
-                    <div style={{ width: '100%', height: '130px' }}>
-                        <ResponsiveContainer>
-                            <LineChart data={data}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                <XAxis dataKey="r" fontSize={10} tick={{fill: '#94a3b8'}} />
-                                <YAxis fontSize={10} tick={{fill: '#94a3b8'}} domain={['auto', 'auto']} hide />
-                                <Tooltip 
-                                    contentStyle={{background: '#fff', borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
-                                    itemStyle={{fontSize: '12px', color: '#6366f1', fontWeight: 'bold'}}
-                                    labelStyle={{display: 'none'}}
-                                    formatter={(value) => [`${value} cm²`, 'Area']}
-                                />
-                                <Line type="monotone" dataKey="area" stroke="#6366f1" strokeWidth={2} dot={false} />
-                                <ReferenceDot x={currentParams.radius} y={Math.round(currentArea)} r={4} fill="#ef4444" stroke="#fff" />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-            );
-        };
-
-        const GeometryLab = () => {
-            const mountRef = useRef(null);
-            
-            // State
-            const [mode, setMode] = useState('explore'); 
-            const [currentShapeId, setCurrentShapeId] = useState('cylinder');
-            const [params, setParams] = useState({ radius: 3, height: 5, width: 4, depth: 4 }); 
-            const [scenario, setScenario] = useState(null);
-            const [gameState, setGameState] = useState('playing'); 
-            const [validation, setValidation] = useState({ vol: false, constraint: false });
-            const [streak, setStreak] = useState(0);
-            const [copied, setCopied] = useState(false);
-            
-            // Toggles
-            const [showNet, setShowNet] = useState(false); 
-            const [showRefObj, setShowRefObj] = useState(false); 
-
-            // Three.js Refs
-            const sceneRef = useRef(null);
-            const meshRef = useRef(null);
-            const netRef = useRef(null); 
-            const refObjRef = useRef(null); 
-            const rendererRef = useRef(null);
-            const cameraRef = useRef(null);
-            const animationFrameRef = useRef(null);
-            const isDragging = useRef(false);
-            const previousMousePosition = useRef({ x: 0, y: 0 });
-            const rotationRef = useRef({ x: 0.5, y: 0.8 }); 
-
-            const shapeConfig = SHAPES[currentShapeId];
-            const currentVolume = shapeConfig.formulas.volume(params);
-            const currentArea = shapeConfig.formulas.area(params);
-
-            const calculateProfit = () => {
-                if (scenario && scenario.type === 'tycoon') {
-                    const revenue = currentVolume * 0.05;
-                    const cost = currentArea * 0.02;
-                    return (revenue - cost).toFixed(2);
-                }
-                return 0;
-            };
-
-            // --- Share Functionality ---
-            const handleShare = () => {
-                const profitInfo = scenario?.type === 'tycoon' ? `\nProfit: $${calculateProfit()}` : '';
-                const targetInfo = scenario ? `\nTarget: ${scenario.targetVolume}ml | Constraint: ${scenario.constraintText}` : '';
-                
-                const textToCopy = `Geometry Design Check!\nShape: ${shapeConfig.name}\nVolume: ${formatNum(currentVolume)} ml\nArea: ${formatNum(currentArea)} cm²${profitInfo}${targetInfo}`;
-
-                // Fallback for iframe environments where navigator.clipboard might be restricted
-                const textArea = document.createElement("textarea");
-                textArea.value = textToCopy;
-                document.body.appendChild(textArea);
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                } catch (err) {
-                    console.error('Failed to copy', err);
-                }
-                document.body.removeChild(textArea);
-            };
-
-            // --- Scenarios ---
-            const generateScenario = () => {
-                const scenarios = [
-                    {
-                        type: 'eco', shapeId: 'cylinder', title: 'Eco-Can Project', icon: <Leaf className="text-emerald-600" />,
-                        desc: 'Design a sustainable soda can. Minimize surface area (aluminum) for the target volume.',
-                        gen: () => {
-                            const v = Math.floor(Math.random() * 200) + 300; 
-                            const r_ideal = Math.pow(v / (2 * Math.PI), 1/3);
-                            const a_ideal = 2 * Math.PI * r_ideal * (2 * r_ideal) + 2 * Math.PI * r_ideal * r_ideal; 
-                            return { targetVolume: v, constraintType: 'area', constraintValue: Math.ceil(a_ideal * 1.15), constraintText: `Area < ${Math.ceil(a_ideal * 1.15)}` };
-                        }
-                    },
-                    {
-                        type: 'tycoon', shapeId: 'cylinder', title: 'Factory Tycoon', icon: <Coins className="text-amber-500" />,
-                        desc: 'Maximize profit! Revenue: $0.05/ml, Cost: $0.02/cm². Optimize dimensions to increase margin.',
-                        gen: () => {
-                            const v = 350; 
-                            const r_ideal = Math.pow(v / (2 * Math.PI), 1/3);
-                            const a_ideal = 2 * Math.PI * r_ideal * (2 * r_ideal) + 2 * Math.PI * r_ideal * r_ideal;
-                            const max_profit = (v * 0.05) - (a_ideal * 0.02);
-                            const target_profit = max_profit * 0.95; 
-                            
-                            return { 
-                                targetVolume: v, 
-                                constraintType: 'profit', 
-                                constraintValue: parseFloat(target_profit.toFixed(2)), 
-                                constraintText: `Profit > $${target_profit.toFixed(2)}` 
-                            };
-                        }
-                    },
-                    {
-                        type: 'logistics', shapeId: 'cube', title: 'Shelf Master', icon: <Package className="text-blue-600" />,
-                        desc: 'Fit the cereal box onto a specific shelf height while meeting volume targets.',
-                        gen: () => {
-                            const v = Math.floor(Math.random() * 300) + 500; 
-                            const h = Math.floor(Math.random() * 3) + 6; 
-                            return { targetVolume: v, constraintType: 'height', constraintValue: h, constraintText: `Height ≤ ${h} cm` };
-                        }
-                    }
-                ];
-
-                const rnd = scenarios[Math.floor(Math.random() * scenarios.length)];
-                const details = rnd.gen();
-                
-                setCurrentShapeId(rnd.shapeId);
-                setScenario({ ...rnd, ...details });
-                setGameState('playing');
-                setValidation({ vol: false, constraint: false });
-                setParams({ radius: 3, height: 5, width: 4, depth: 4 }); 
-                setShowNet(false); 
-            };
-
-            useEffect(() => { if (mode === 'game' && !scenario) generateScenario(); }, [mode]);
-
-            useEffect(() => {
-                if (!scenario || mode !== 'game') return;
-                const isVolOk = Math.abs(currentVolume - scenario.targetVolume) < (scenario.targetVolume * 0.05);
-                let isConstraintOk = false;
-                
-                if (scenario.constraintType === 'area') isConstraintOk = currentArea <= scenario.constraintValue;
-                else if (scenario.constraintType === 'height') isConstraintOk = params.height <= scenario.constraintValue;
-                else if (scenario.constraintType === 'profit') isConstraintOk = parseFloat(calculateProfit()) >= scenario.constraintValue;
-
-                setValidation({ vol: isVolOk, constraint: isConstraintOk });
-            }, [currentVolume, currentArea, params, scenario, mode]);
-
-            const handleSubmit = () => {
-                if (validation.vol && validation.constraint) {
-                    setGameState('success');
-                    setStreak(s => s + 1);
-                    confetti({
-                        particleCount: 150, spread: 70, origin: { y: 0.6 },
-                        colors: ['#6366f1', '#10b981', '#f43f5e']
-                    });
-                }
-            };
-            
-            const updateParam = (k, v) => setParams(p => ({ ...p, [k]: parseFloat(v) }));
-
-            // --- Three.js Setup ---
-            useEffect(() => {
-                if (!mountRef.current) return;
-                const scene = new THREE.Scene();
-                
-                const width = mountRef.current.clientWidth;
-                const height = mountRef.current.clientHeight;
-                const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-                camera.position.set(12, 10, 12);
-                camera.lookAt(0, 3, 0); 
-
-                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-                renderer.setSize(width, height);
-                renderer.setPixelRatio(window.devicePixelRatio);
-                renderer.shadowMap.enabled = true;
-                renderer.toneMapping = THREE.ACESFilmicToneMapping;
-                
-                mountRef.current.appendChild(renderer.domElement);
-                sceneRef.current = scene;
-                cameraRef.current = camera;
-                rendererRef.current = renderer;
-
-                // Lighting
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-                scene.add(ambientLight);
-                const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
-                mainLight.position.set(5, 12, 8);
-                mainLight.castShadow = true;
-                mainLight.shadow.mapSize.width = 1024;
-                mainLight.shadow.mapSize.height = 1024;
-                scene.add(mainLight);
-                const fillLight = new THREE.DirectionalLight(0xbfdbfe, 0.6);
-                fillLight.position.set(-5, 5, -5);
-                scene.add(fillLight);
-
-                // Floor Grid
-                const gridHelper = new THREE.GridHelper(30, 30, 0x94a3b8, 0xe2e8f0);
-                scene.add(gridHelper);
-
-                // Reference Object: Pencil
-                const pencilGroup = new THREE.Group();
-                // Body
-                const body = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 14, 6), new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.6 }));
-                pencilGroup.add(body);
-                // Ferrule
-                const ferrule = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 1.5, 32), new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.7, roughness: 0.3 }));
-                ferrule.position.y = 7.75;
-                pencilGroup.add(ferrule);
-                // Eraser
-                const eraser = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 1.5, 32), new THREE.MeshStandardMaterial({ color: 0xf472b6, roughness: 0.9 }));
-                eraser.position.y = 9.25;
-                pencilGroup.add(eraser);
-                // Wood
-                const wood = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.1, 2, 32), new THREE.MeshStandardMaterial({ color: 0xfde68a, roughness: 1.0 }));
-                wood.position.y = -8;
-                pencilGroup.add(wood);
-                // Lead
-                const lead = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.02, 0.5, 32), new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 1.0 }));
-                lead.position.y = -9.25;
-                pencilGroup.add(lead);
-
-                pencilGroup.rotation.z = Math.PI / 2;
-                pencilGroup.rotation.y = -Math.PI / 4;
-                pencilGroup.position.set(8, 0.4, 2);
-                pencilGroup.visible = false;
-                scene.add(pencilGroup);
-                refObjRef.current = pencilGroup;
-
-                // Animation
-                const animate = () => {
-                    if (meshRef.current && !isDragging.current) {
-                        meshRef.current.rotation.y += 0.003;
-                        if (netRef.current) netRef.current.rotation.y += 0.003;
-                    } else if (meshRef.current) {
-                         meshRef.current.rotation.y = rotationRef.current.y;
-                         meshRef.current.rotation.x = rotationRef.current.x;
-                         if (netRef.current) {
-                             netRef.current.rotation.y = rotationRef.current.y;
-                             netRef.current.rotation.x = rotationRef.current.x;
-                         }
-                    }
-                    if (rendererRef.current && sceneRef.current && cameraRef.current) {
-                        rendererRef.current.render(sceneRef.current, cameraRef.current);
-                    }
-                    animationFrameRef.current = requestAnimationFrame(animate);
-                };
-                animate();
-
-                // Resize
-                const resizeObserver = new ResizeObserver((entries) => {
-                    if (!Array.isArray(entries) || !entries.length) return;
-                    if (mountRef.current && cameraRef.current && rendererRef.current) {
-                        const w = mountRef.current.clientWidth;
-                        const h = mountRef.current.clientHeight;
-                        if (w > 0 && h > 0) {
-                            cameraRef.current.aspect = w / h;
-                            cameraRef.current.updateProjectionMatrix();
-                            rendererRef.current.setSize(w, h);
-                        }
-                    }
-                });
-                resizeObserver.observe(mountRef.current);
-
-                return () => {
-                    resizeObserver.disconnect();
-                    if (mountRef.current && renderer.domElement) mountRef.current.removeChild(renderer.domElement);
-                    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-                    renderer.dispose();
-                };
-            }, []);
-
-            // Update Mesh & Net
-            useEffect(() => {
-                if (!sceneRef.current) return;
-                
-                if (meshRef.current) {
-                    sceneRef.current.remove(meshRef.current);
-                    meshRef.current.traverse(c => { if(c.geometry) c.geometry.dispose(); if(c.material) c.material.dispose(); });
-                }
-                if (netRef.current) {
-                    sceneRef.current.remove(netRef.current);
-                    netRef.current.traverse(c => { if(c.geometry) c.geometry.dispose(); if(c.material) c.material.dispose(); });
-                }
-
-                const p = params;
-                const scale = 0.5;
-                let geo;
-                if (currentShapeId === 'cube') geo = new THREE.BoxGeometry(p.width*scale, p.height*scale, p.depth*scale);
-                else if (currentShapeId === 'cylinder') geo = new THREE.CylinderGeometry(p.radius*scale, p.radius*scale, p.height*scale, 64);
-                else geo = new THREE.CylinderGeometry(0, p.radius*scale, p.height*scale, 64);
-
-                const isSuccess = mode === 'game' && validation.vol && validation.constraint;
-                const baseColor = isSuccess ? 0x10b981 : (mode === 'explore' ? 0x3b82f6 : shapeConfig.matProps.color);
-                
-                const material = new THREE.MeshPhysicalMaterial({
-                    color: baseColor,
-                    metalness: shapeConfig.matProps.metalness,
-                    roughness: shapeConfig.matProps.roughness,
-                    clearcoat: shapeConfig.matProps.clearcoat,
-                    transparent: true,
-                    opacity: showNet ? 0.2 : 0.95 
-                });
-
-                const mesh = new THREE.Mesh(geo, material);
-                mesh.castShadow = true;
-                mesh.position.y = (p.height * scale) / 2;
-                const edges = new THREE.LineSegments(
-                    new THREE.EdgesGeometry(geo),
-                    new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.5, transparent: true })
-                );
-                mesh.add(edges);
-
-                mesh.rotation.x = rotationRef.current.x;
-                mesh.rotation.y = rotationRef.current.y;
-                sceneRef.current.add(mesh);
-                meshRef.current = mesh;
-
-                if (showNet) {
-                    const netGroup = new THREE.Group();
-                    const netMat = new THREE.MeshBasicMaterial({ color: baseColor, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
-                    
-                    if (currentShapeId === 'cylinder') {
-                        const c = 2 * Math.PI * p.radius * scale;
-                        const h = p.height * scale;
-                        const body = new THREE.Mesh(new THREE.PlaneGeometry(c, h), netMat);
-                        body.position.set(0, h/2, 0);
-                        netGroup.add(body);
-                        const top = new THREE.Mesh(new THREE.CircleGeometry(p.radius * scale, 32), netMat);
-                        top.position.set(0, h + p.radius*scale + 0.2, 0);
-                        netGroup.add(top);
-                        const bot = new THREE.Mesh(new THREE.CircleGeometry(p.radius * scale, 32), netMat);
-                        bot.position.set(0, -p.radius*scale - 0.2, 0);
-                        netGroup.add(bot);
-                    } else if (currentShapeId === 'cube') {
-                        const w = p.width * scale; const h = p.height * scale; const d = p.depth * scale;
-                        const center = new THREE.Mesh(new THREE.PlaneGeometry(w, h), netMat);
-                        netGroup.add(center);
-                        const top = new THREE.Mesh(new THREE.PlaneGeometry(w, d), netMat); top.position.y = h/2 + d/2; netGroup.add(top);
-                        const bot = new THREE.Mesh(new THREE.PlaneGeometry(w, d), netMat); bot.position.y = -h/2 - d/2; netGroup.add(bot);
-                        const left = new THREE.Mesh(new THREE.PlaneGeometry(d, h), netMat); left.position.x = -w/2 - d/2; netGroup.add(left);
-                        const right = new THREE.Mesh(new THREE.PlaneGeometry(d, h), netMat); right.position.x = w/2 + d/2; netGroup.add(right);
-                        const back = new THREE.Mesh(new THREE.PlaneGeometry(w, h), netMat); back.position.x = w/2 + d + w/2; netGroup.add(back);
-                    }
-                    netGroup.position.set(-8, 4, 0);
-                    netGroup.rotation.y = Math.PI / 4;
-                    sceneRef.current.add(netGroup);
-                    netRef.current = netGroup;
-                }
-
-                if (refObjRef.current) refObjRef.current.visible = showRefObj;
-
-            }, [currentShapeId, params, mode, validation, showNet, showRefObj]);
-
-            const handleMouseDown = (e) => { isDragging.current = true; previousMousePosition.current = { x: e.clientX, y: e.clientY }; };
-            const handleMouseMove = (e) => {
-                if (!isDragging.current) return;
-                const delta = { x: e.clientX - previousMousePosition.current.x, y: e.clientY - previousMousePosition.current.y };
-                rotationRef.current.y += delta.x * 0.01;
-                rotationRef.current.x += delta.y * 0.01;
-                previousMousePosition.current = { x: e.clientX, y: e.clientY };
-            };
-            const handleMouseUp = () => isDragging.current = false;
-
-            return (
-                <div className="flex w-full h-screen bg-slate-50 text-slate-800 overflow-hidden" 
-                     onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
-                    
-                    {/* Sidebar */}
-                    <aside className="w-[420px] m-4 flex flex-col z-20 shadow-2xl rounded-3xl glass-panel animate-fade-in overflow-hidden h-[calc(100vh-2rem)] border border-white/60">
-                        
-                        {/* Header */}
-                        <div className="p-6 border-b border-slate-200/60 bg-white/60 backdrop-blur-md">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-lg shadow-indigo-500/30">
-                                        <Package size={24} strokeWidth={2.5} />
-                                    </div>
-                                    <div>
-                                        <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">GeoDesigner</h1>
-                                        <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Factory Edition</p>
-                                    </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={handleShare} className={`p-2 rounded-full transition-all ${copied ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`} title="Copy Stats">
-                                        {copied ? <Check size={18} /> : <ClipboardCopy size={18} />}
-                                    </button>
-                                    {mode === 'game' && (
-                                        <div className="flex items-center gap-1.5 bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 px-3 py-1.5 rounded-full text-xs font-bold border border-amber-200 shadow-sm">
-                                            <Zap size={14} fill="currentColor" />
-                                            Streak: {streak}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="flex bg-slate-100/80 p-1.5 rounded-xl relative border border-slate-200">
-                                <div className={`absolute top-1.5 bottom-1.5 w-[50%] bg-white rounded-lg shadow-sm transition-all duration-300 ${mode === 'game' ? 'left-[49%]' : 'left-1.5'}`}></div>
-                                <button onClick={() => {setMode('explore'); setGameState('playing')}} className={`flex-1 relative z-10 py-2 text-sm font-bold rounded-lg transition-colors ${mode === 'explore' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}>
-                                    Explore
-                                </button>
-                                <button onClick={() => {setMode('game'); generateScenario()}} className={`flex-1 relative z-10 py-2 text-sm font-bold rounded-lg transition-colors ${mode === 'game' ? 'text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}>
-                                    Challenge
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Content Area */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-gradient-to-b from-white/40 to-transparent">
-                            
-                            {mode === 'game' && scenario ? (
-                                <div className="animate-fade-in space-y-6">
-                                    {/* Mission Info */}
-                                    <div className={`rounded-2xl p-5 border shadow-sm relative overflow-hidden transition-all duration-300 ${gameState === 'success' ? 'bg-green-50 border-green-200' : 'bg-white border-indigo-50'}`}>
-                                        <div className="flex items-start gap-4 relative z-10">
-                                            <div className="p-3 bg-indigo-50 rounded-2xl text-indigo-600 border border-indigo-100 shadow-sm">
-                                                {scenario.icon}
-                                            </div>
-                                            <div>
-                                                <h3 className="font-bold text-lg text-slate-800 leading-tight">{scenario.title}</h3>
-                                                <p className="text-sm text-slate-500 leading-snug mt-1 font-medium">{scenario.desc}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* DASHBOARD */}
-                                    <div className="bg-white rounded-3xl p-1 shadow-lg border border-slate-100">
-                                        {/* Target 1: Volume */}
-                                        <div className="p-4 border-b border-slate-100">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`w-2 h-8 rounded-full ${validation.vol ? 'bg-emerald-500' : 'bg-indigo-500'}`}></div>
-                                                    <div>
-                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Target Volume</span>
-                                                        <span className="text-xl font-black text-slate-800">{scenario.targetVolume} <span className="text-sm font-bold text-slate-400">ml</span></span>
-                                                    </div>
-                                                </div>
-                                                <div className={`px-3 py-1 rounded-full text-xs font-bold ${validation.vol ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                                                    {validation.vol ? 'Matched' : 'Adjusting...'}
-                                                </div>
-                                            </div>
-                                            <div className="relative h-4 bg-slate-100 rounded-full overflow-hidden mt-2">
-                                                <div className="absolute top-0 bottom-0 left-[47.5%] w-[5%] bg-emerald-200/50 border-x border-emerald-300 z-10"></div>
-                                                <div className={`absolute top-0 bottom-0 left-0 transition-all duration-300 ${validation.vol ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
-                                                     style={{width: `${Math.min(100, (currentVolume / (scenario.targetVolume * 2)) * 100)}%`}}>
-                                                </div>
-                                            </div>
-                                            <div className="flex justify-between text-[10px] text-slate-400 font-bold mt-1 px-1">
-                                                <span>0</span>
-                                                <span className="text-indigo-600">Current: {formatNum(currentVolume)} ml</span>
-                                                <span>Max</span>
-                                            </div>
-                                        </div>
-
-                                        {/* Target 2: Constraint / Profit */}
-                                        <div className="p-4">
-                                            <div className="flex justify-between items-center">
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`w-2 h-8 rounded-full ${validation.constraint ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-                                                    <div>
-                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                                                            {scenario.constraintType === 'profit' ? 'Profit Target' : 'Constraint'}
-                                                        </span>
-                                                        <span className="text-sm font-bold text-slate-700">{scenario.constraintText}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className="text-[10px] font-bold uppercase text-slate-400 block">Current</span>
-                                                    <span className={`text-base font-black ${validation.constraint ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                                        {scenario.constraintType === 'area' ? formatNum(currentArea) + ' cm²' : 
-                                                         scenario.constraintType === 'profit' ? '$' + calculateProfit() : 
-                                                         params.height + ' cm'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="space-y-6 animate-fade-in">
-                                    <div className="flex gap-3">
-                                        {Object.values(SHAPES).map(s => (
-                                            <button key={s.id} onClick={() => setCurrentShapeId(s.id)} 
-                                                className={`flex-1 py-4 flex flex-col items-center gap-2 rounded-2xl border transition-all duration-200 ${currentShapeId === s.id ? 'bg-indigo-50 border-indigo-500 text-indigo-600 shadow-md transform scale-105' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}>
-                                                {s.icon}
-                                                <span className="text-xs font-bold">{s.name}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="bg-slate-800 p-4 rounded-2xl text-white shadow-xl shadow-slate-300/40">
-                                            <div className="text-xs text-slate-400 mb-1">Volume</div>
-                                            <div className="text-xl font-mono font-bold text-indigo-300">{formatNum(currentVolume)}</div>
-                                        </div>
-                                        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
-                                            <div className="text-xs text-slate-500 mb-1">Surface Area</div>
-                                            <div className="text-xl font-mono font-bold text-slate-700">{formatNum(currentArea)}</div>
-                                        </div>
-                                    </div>
-
-                                    {/* Toggle Features */}
-                                    <div className="flex gap-2">
-                                        <button onClick={() => setShowNet(!showNet)} className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all flex items-center justify-center gap-2 ${showNet ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-white text-slate-500 border-slate-200'}`}>
-                                            <Grid3X3 size={14}/> {showNet ? 'Hide Net' : 'Show Net'}
-                                        </button>
-                                        <button onClick={() => setShowRefObj(!showRefObj)} className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all flex items-center justify-center gap-2 ${showRefObj ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'bg-white text-slate-500 border-slate-200'}`}>
-                                            <Pencil size={14}/> Ref: Pencil
-                                        </button>
-                                    </div>
-
-                                    {/* Live Chart */}
-                                    <OptimizationChart shapeId={currentShapeId} currentParams={params} currentArea={currentArea} />
-                                </div>
-                            )}
-
-                            {/* CONTROLS */}
-                            <div className="space-y-6 pt-2 pb-4">
-                                <div className="flex items-center gap-2 mb-2 text-slate-400">
-                                    <Ruler size={14} />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest">Adjust Parameters</span>
-                                </div>
-                                {currentShapeId === 'cube' ? 
-                                    ['width', 'depth', 'height'].map(k => <Slider key={k} label={k} val={params[k]} min={SHAPES.cube.limits[k][0]} max={SHAPES.cube.limits[k][1]} onChange={v => updateParam(k, v)} />) :
-                                    ['radius', 'height'].map(k => <Slider key={k} label={k} val={params[k]} min={shapeConfig.limits[k][0]} max={shapeConfig.limits[k][1]} onChange={v => updateParam(k, v)} />)
-                                }
-                            </div>
-                        </div>
-
-                        <div className="p-6 border-t border-slate-200 bg-white/60 backdrop-blur-md">
-                            {mode === 'game' ? (
-                                gameState === 'playing' ? (
-                                    <button onClick={handleSubmit} disabled={!validation.vol || !validation.constraint}
-                                        className={`w-full py-4 rounded-2xl font-bold text-white shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-95 ${validation.vol && validation.constraint ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/30' : 'bg-slate-300 cursor-not-allowed'}`}>
-                                        {validation.vol && validation.constraint ? <><Sparkles size={20}/> Submit Design</> : 'Requirements Not Met'}
-                                    </button>
-                                ) : (
-                                    <button onClick={generateScenario} className="w-full py-4 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 flex items-center justify-center gap-2 shadow-xl animate-pulse-subtle transform active:scale-95">
-                                        <RotateCcw size={20}/> Next Challenge
-                                    </button>
-                                )
-                            ) : (
-                                <div className="text-center flex justify-center items-center gap-2 text-xs text-slate-400 font-bold bg-slate-100 py-3 rounded-xl">
-                                    <RotateCcw size={14}/> Drag model to rotate view
-                                </div>
-                            )}
-                        </div>
-                    </aside>
-
-                    {/* Main 3D Canvas Area */}
-                    <main className="flex-1 relative h-full bg-slate-50/50 cursor-move border-l border-slate-200/50" onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}>
-                        <div ref={mountRef} className="w-full h-full block" />
-                        
-                        <div className="absolute top-10 right-10 pointer-events-none opacity-30">
-                            <div className="w-64 h-64 bg-indigo-400 rounded-full blur-[120px]"></div>
-                        </div>
-                        <div className="absolute bottom-10 left-20 pointer-events-none opacity-30">
-                            <div className="w-96 h-96 bg-rose-300 rounded-full blur-[140px]"></div>
-                        </div>
-                    </main>
-
-                </div>
-            );
-        };
-
-        const Slider = ({ label, val, min, max, onChange }) => (
-            <div className="group">
-                <div className="flex justify-between mb-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">{label}</label>
-                    <span className="text-xs font-mono font-bold bg-white px-3 py-1 rounded-lg shadow-sm text-indigo-600 border border-slate-100">{val} cm</span>
-                </div>
-                <input type="range" min={min} max={max} step="0.1" value={val} onChange={e => onChange(e.target.value)} 
-                    className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-slate-200 hover:bg-indigo-200 transition-colors" />
+<div id="game-console">
+    <div id="screen-border">
+        <div id="screen">
+            <div class="hud">
+                <span>LV.<span id="lvl-num">1</span></span>
+                <span id="monster-name">原生質幾何體</span>
             </div>
-        );
+            <div class="exp-bar-frame"><div class="exp-bar-fill" id="exp-fill"></div></div>
 
-        const root = createRoot(document.getElementById('root'));
-        root.render(<GeometryLab />);
-    </script>
+            <canvas id="game-canvas" width="370" height="450"></canvas>
+
+            <div id="evo-overlay">
+                <h3 style="color:#fff; text-shadow:0 0 10px #fff;">🧬 基因突變 🧬</h3>
+                <div class="cards-container" id="cards-box">
+                    </div>
+            </div>
+
+            <div id="command-center">
+                <div id="msg-box">系統連線中...</div>
+                
+                <div class="controls" id="input-area">
+                    <button id="hint-btn" onclick="useHint()">💡 提示(3)</button>
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <span>x=</span>
+                        <input type="number" id="answer-input" placeholder="?">
+                    </div>
+                    <button onclick="checkAnswer()" style="background:#004400; border-color:#00ff00;">注入</button>
+                </div>
+                
+                <div class="controls" id="mc-area" style="display:none; justify-content:center;">
+                    <button class="mc-btn" onclick="checkMC(0)" id="btn-0" style="width:30%">A</button>
+                    <button class="mc-btn" onclick="checkMC(1)" id="btn-1" style="width:30%">B</button>
+                    <button class="mc-btn" onclick="checkMC(2)" id="btn-2" style="width:30%">C</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 遊戲狀態 ---
+    const state = {
+        level: 1,
+        exp: 0,
+        maxExp: 3,
+        hints: 3,
+        question: null,
+        wrongCount: 0,
+        paused: false,
+        // 幾何獸基因庫
+        parts: {
+            color: '#98fb98', // 預設螢光綠
+            aura: 'none',     // 光環
+            horns: 'none',    // 角
+            wings: 'none',    // 翼
+            core: 'none'      // 胸口核心
+        },
+        name: "原生質幾何體"
+    };
+
+    const canvas = document.getElementById('game-canvas');
+    const ctx = canvas.getContext('2d');
+    let tick = 0;
+
+    // --- 題庫邏輯 (S3 重點) ---
+    function generateProblem() {
+        state.wrongCount = 0;
+        toggleInput(true);
+        document.getElementById('answer-input').value = '';
+        document.getElementById('answer-input').focus();
+
+        const lvl = state.level;
+        let q = {};
+        
+        // 隨機整數答案 x (避免分數，降低挫折感，專注幾何邏輯)
+        const x = Math.floor(Math.random() * 6) + 3; // 3 to 8
+
+        // 題型池
+        const types = [];
+        types.push('side_eq'); // 對邊相等 (Lv1+)
+        if (lvl >= 2) types.push('angle_adj'); // 同側內角互補 (Lv2+)
+        if (lvl >= 3) types.push('angle_opp'); // 對角相等 (Lv3+)
+        if (lvl >= 4) types.push('diag_bisect'); // 對角線平分 (Lv4+)
+
+        const type = types[Math.floor(Math.random() * types.length)];
+
+        if (type === 'side_eq') {
+            // S3: 兩邊都有 x 的方程式 (3x + 2 = x + 12)
+            const a = Math.floor(Math.random() * 2) + 2; // 2 or 3
+            const b = Math.floor(Math.random() * 5) + 1;
+            // 右邊式子: x + d. 
+            // ax + b = x + d  => (a-1)x + b = d
+            const d = (a - 1) * x + b;
+            
+            q = {
+                type: 'side',
+                text: `偵測到邊長異常。<br>利用「對邊相等」性質求解。<br>${a}x + ${b} = x + ${d}`,
+                hint: "平行四邊形的對邊長度相等 (Top = Bottom)。",
+                ans: x,
+                draw: { top: `${a}x+${b}`, bottom: `x+${d}` }
+            };
+
+        } else if (type === 'angle_adj') {
+            // S3: 同側內角互補 (A + B = 180)
+            // (2x + 10) + (??) = 180
+            const a = 2; 
+            const b = Math.floor(Math.random() * 10) * 2; // 偶數
+            const angleA = a * x + b;
+            const angleB = 180 - angleA;
+            
+            // 讓 Angle B 顯示為數字，Angle A 顯示為式子
+            q = {
+                type: 'angle_adj',
+                text: `能量流互斥！同側內角不穩。<br>角A (${a}x+${b}) 與 角B (${angleB}°) 互補。`,
+                hint: "平行四邊形中，鄰角 (U字型/C字型) 相加等於 180 度。",
+                ans: x,
+                draw: { A: `${a}x+${b}`, B: `${angleB}°` }
+            };
+
+        } else if (type === 'angle_opp') {
+            // 對角相等 (3x - 10 = 50)
+            const a = 3;
+            const b = 10;
+            const angleVal = a * x - b;
+            q = {
+                type: 'angle_opp',
+                text: `核心共振。利用「對角相等」求解。<br>${a}x - ${b} = ${angleVal}°`,
+                hint: "平行四邊形的對角 (Opposite Angles) 數值是相等的。",
+                ans: x,
+                draw: { A: `${a}x-${b}`, C: `${angleVal}°` }
+            };
+        } else if (type === 'diag_bisect') {
+             // 對角線平分
+             const len = x + 5;
+             q = {
+                 type: 'diag',
+                 text: `對角線交點偏移。<br>一半長度為 ${len}，另一半為 x+5`,
+                 hint: "平行四邊形的對角線會互相平分 (切一半)。",
+                 ans: x,
+                 draw: { d1: `${len}`, d2: `x+5` }
+             };
+        }
+
+        state.question = q;
+        uiMsg(q.text);
+    }
+
+    // --- 繪圖系統 ---
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        tick += 0.05;
+        const floatY = Math.sin(tick) * 5;
+        const cx = 185;
+        const cy = 200 + floatY;
+        
+        // 根據屬性改變繪圖風格
+        // 這裡簡化處理，透過 state.parts 決定
+        
+        // 1. 畫光環/翅膀 (背景層)
+        if (state.parts.wings === 'angel') drawWings(cx, cy, 'angel');
+        if (state.parts.wings === 'demon') drawWings(cx, cy, 'demon');
+        if (state.parts.aura === 'tech') drawAura(cx, cy, '#55ffff');
+        if (state.parts.aura === 'fire') drawAura(cx, cy, '#ff5555');
+
+        // 2. 畫主體 (平行四邊形)
+        let skew = 40;
+        // 如果答錯多次，圖形會扭曲
+        if (state.wrongCount > 0 && !state.paused) skew = 10 + Math.sin(tick*10)*5;
+
+        const w = 80; const h = 50;
+        const p1 = {x:cx-w+skew, y:cy-h};
+        const p2 = {x:cx+w+skew, y:cy-h};
+        const p3 = {x:cx+w-skew, y:cy+h};
+        const p4 = {x:cx-w-skew, y:cy+h};
+
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = state.parts.color;
+        ctx.fillStyle = hexToRgba(state.parts.color, 0.2);
+
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // 3. 畫角/核心 (前景層)
+        if (state.parts.horns === 'sharp') drawHorns(cx, cy, 'sharp');
+        if (state.parts.horns === 'bull') drawHorns(cx, cy, 'bull');
+        if (state.parts.core === 'reactor') drawCore(cx, cy);
+
+        // 4. 畫題目標示 (UI Overlay)
+        drawQuestionOverlay(p1, p2, p3, p4);
+
+        if (!state.paused) requestAnimationFrame(draw);
+    }
+
+    function drawQuestionOverlay(p1, p2, p3, p4) {
+        if (!state.question) return;
+        const q = state.question;
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        if (q.type === 'side') {
+            // 高亮上下邊
+            ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); ctx.stroke();
+            
+            ctx.fillText(q.draw.top, (p1.x+p2.x)/2, p1.y - 15);
+            ctx.fillText(q.draw.bottom, (p3.x+p4.x)/2, p3.y + 15);
+        } else if (q.type === 'angle_adj') {
+            // 畫鄰角 A(左上) B(左下)
+            drawAngle(p1, 0, 1, q.draw.A, '#ff5555');
+            drawAngle(p4, -1, 0, q.draw.B, '#5555ff');
+            // 畫個 C 字型連結提示
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.setLineDash([5,5]);
+            ctx.beginPath(); ctx.moveTo(p1.x-10, p1.y+10); ctx.quadraticCurveTo(p1.x-30, (p1.y+p4.y)/2, p4.x-10, p4.y-10); ctx.stroke();
+            ctx.setLineDash([]);
+        } else if (q.type === 'angle_opp') {
+            // 畫對角
+            drawAngle(p1, 0, 1, q.draw.A, '#ff5555');
+            drawAngle(p3, -1, 0, q.draw.C, '#ff5555');
+        } else if (q.type === 'diag') {
+            ctx.strokeStyle = '#aaa';
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p3.x, p3.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(p2.x, p2.y); ctx.lineTo(p4.x, p4.y); ctx.stroke();
+            ctx.fillStyle = '#0f0';
+            ctx.fillText(q.draw.d1, 185, 180);
+            ctx.fillText(q.draw.d2, 185, 220);
+        }
+    }
+
+    function drawAngle(p, startMult, endMult, text, color) {
+        ctx.strokeStyle = color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 25, 0, Math.PI*2); ctx.stroke(); // 簡化畫圈
+        ctx.fillStyle = color;
+        // 文字避讓邏輯
+        const offsetX = (p.x < 185) ? -40 : 40;
+        ctx.fillText(text, p.x + offsetX, p.y);
+    }
+
+    // 簡單的幾何繪圖輔助
+    function drawWings(x, y, type) {
+        ctx.strokeStyle = (type==='angel') ? '#fff' : '#f00';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // 簡單示意
+        ctx.moveTo(x, y); ctx.lineTo(x-80, y-50); ctx.lineTo(x-60, y+20); ctx.stroke();
+        ctx.moveTo(x, y); ctx.lineTo(x+80, y-50); ctx.lineTo(x+60, y+20); ctx.stroke();
+    }
+    function drawHorns(x, y, type) {
+        ctx.fillStyle = (type==='sharp') ? '#ff0000' : '#888';
+        ctx.beginPath(); ctx.moveTo(x-20, y-40); ctx.lineTo(x-30, y-80); ctx.lineTo(x-10, y-50); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x+20, y-40); ctx.lineTo(x+30, y-80); ctx.lineTo(x+10, y-50); ctx.fill();
+    }
+    function drawCore(x, y) {
+        ctx.fillStyle = '#00ffff';
+        ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 10; ctx.shadowColor = '#00ffff'; ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+    function drawAura(x, y, col) {
+        ctx.strokeStyle = col;
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath(); ctx.arc(x, y, 90 + Math.sin(tick)*10, 0, Math.PI*2); ctx.stroke();
+        ctx.globalAlpha = 1.0;
+    }
+
+    // --- 互動與邏輯 ---
+
+    function checkAnswer() {
+        const input = document.getElementById('answer-input');
+        const val = parseInt(input.value);
+        if (isNaN(val)) return;
+
+        if (val === state.question.ans) {
+            // Correct
+            state.exp++;
+            updateBar();
+            uiMsg("同步率上升！幾何結構穩定。");
+            if (state.exp >= state.maxExp) {
+                setTimeout(startEvolution, 1000);
+            } else {
+                setTimeout(generateProblem, 1500);
+            }
+        } else {
+            // Wrong
+            state.wrongCount++;
+            handleWrong();
+        }
+    }
+
+    function checkMC(idx) {
+        // 選擇題邏輯... (此處簡化，實際應驗證答案)
+        // 假設第一個按鈕總是正確答案的簡單演示，或需配合 generateMC
+        // 這裡為了演示流暢，若按下選擇題，重置問題
+        uiMsg("系統強制校正中...");
+        setTimeout(generateProblem, 1000);
+    }
+
+    function handleWrong() {
+        const screen = document.getElementById('screen');
+        screen.classList.remove('shake');
+        void screen.offsetWidth; 
+        screen.classList.add('shake');
+        
+        if (state.wrongCount >= 2) {
+            uiMsg("錯誤過多！啟動三選一輔助模式。");
+            toggleInput(false);
+            // 簡單生成選項
+            const ans = state.question.ans;
+            const opts = [ans, ans+2, ans-1].sort(()=>Math.random()-0.5);
+            opts.forEach((v, i) => {
+                document.getElementById('btn-'+i).innerText = v;
+                document.getElementById('btn-'+i).onclick = function() {
+                     if(v===ans) { state.exp++; updateBar(); uiMsg("校正成功！"); setTimeout(generateProblem, 1500); }
+                     else { alert("無效數據！"); }
+                };
+            });
+        } else {
+            uiMsg("計算錯誤！請檢查性質 (Hint available).");
+        }
+    }
+
+    // --- 進化系統 (核心亮點) ---
+    
+    const evoPool = {
+        2: [ // Lv2 Choices
+            { title:"赤紅之角", desc:"長出銳利的角。<br>攻擊型態。", style:'card-red', icon:'😈', apply:()=>{state.parts.horns='sharp'; state.parts.color='#ffaaaa'; state.name="狂暴三角獸";} },
+            { title:"鋼鐵裝甲", desc:"增加防禦厚度。<br>防禦型態。", style:'card-blue', icon:'🛡️', apply:()=>{state.parts.horns='bull'; state.parts.color='#aaaaff'; state.name="重裝四邊獸";} },
+            { title:"光子核心", desc:"胸口聚變反應。<br>能量型態。", style:'card-yellow', icon:'⚛️', apply:()=>{state.parts.core='reactor'; state.parts.color='#ffffaa'; state.name="光能核心獸";} }
+        ],
+        3: [ // Lv3 Choices
+            { title:"惡魔之翼", desc:"獲得飛行能力。<br>速度提升。", style:'card-red', icon:'🦇', apply:()=>{state.parts.wings='demon';} },
+            { title:"天使之羽", desc:"神聖幾何加護。<br>幸運提升。", style:'card-blue', icon:'🪽', apply:()=>{state.parts.wings='angel';} },
+            { title:"虛空光環", desc:"干涉周圍磁場。<br>控制提升。", style:'card-yellow', icon:'⭕', apply:()=>{state.parts.aura='tech';} }
+        ]
+    };
+
+    function startEvolution() {
+        state.paused = true;
+        const choices = evoPool[state.level + 1] || evoPool[2]; // 預設用 Lv2 的做演示
+        
+        const container = document.getElementById('cards-box');
+        container.innerHTML = '';
+        
+        choices.forEach(c => {
+            const card = document.createElement('div');
+            card.className = `evo-card ${c.style}`;
+            card.innerHTML = `
+                <div class="card-title">${c.title}</div>
+                <div class="card-icon">${c.icon}</div>
+                <div class="card-desc">${c.desc}</div>
+            `;
+            card.onclick = () => {
+                c.apply();
+                endEvolution();
+            };
+            container.appendChild(card);
+        });
+
+        document.getElementById('evo-overlay').style.display = 'flex';
+    }
+
+    function endEvolution() {
+        state.level++;
+        state.exp = 0;
+        state.maxExp += 2;
+        updateBar();
+        document.getElementById('lvl-num').innerText = state.level;
+        document.getElementById('monster-name').innerText = state.name;
+        document.getElementById('evo-overlay').style.display = 'none';
+        state.paused = false;
+        
+        uiMsg(`進化完成！<br>個體名：${state.name}`);
+        draw(); // Force redraw
+        setTimeout(generateProblem, 2000);
+    }
+
+    // --- Utils ---
+    function updateBar() {
+        const pct = (state.exp / state.maxExp) * 100;
+        document.getElementById('exp-fill').style.width = pct + "%";
+    }
+    function uiMsg(txt) { document.getElementById('msg-box').innerHTML = txt; }
+    function toggleInput(isInput) {
+        document.getElementById('input-area').style.display = isInput ? 'flex' : 'none';
+        document.getElementById('mc-area').style.display = isInput ? 'none' : 'flex';
+    }
+    function hexToRgba(hex, alpha) {
+        // 簡單轉換，實際專案可用更嚴謹的 regex
+        return hex; // Canvas fillStyle support hex usually, just returning hex for now or adapt if needed
+    }
+    function useHint() {
+        if(state.hints > 0 && state.question) {
+            state.hints--;
+            document.getElementById('hint-btn').innerText = `💡 提示(${state.hints})`;
+            alert(state.question.hint);
+        }
+    }
+
+    // Start
+    generateProblem();
+    draw();
+
+</script>
 </body>
 </html>
